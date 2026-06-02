@@ -3,5 +3,6 @@ node_modules/
 session/
 n8n_data/
 whatsapp_session/
+.worktrees/
 *.log
 n8n/workflows/*.raw.json
