@@ -1,0 +1,536 @@
+﻿[
+    {
+        "updatedAt":  "2026-06-01T13:03:23.747Z",
+        "createdAt":  "2026-05-30T14:13:18.758Z",
+        "id":  "GzaVQyP3H3REm6M7",
+        "name":  "whatsapp booot",
+        "description":  null,
+        "active":  true,
+        "isArchived":  false,
+        "nodes":  [
+                      {
+                          "parameters":  {
+                                             "httpMethod":  "POST",
+                                             "path":  "whatsapp-trigger",
+                                             "options":  {
+
+                                                         }
+                                         },
+                          "type":  "n8n-nodes-base.webhook",
+                          "typeVersion":  2.1,
+                          "position":  [
+                                           -720,
+                                           112
+                                       ],
+                          "id":  "d43d78ae-8c8e-42fe-9933-4d2bc233381a",
+                          "name":  "Webhook",
+                          "webhookId":  "aa6f93b7-00ec-4ffd-99d3-ede937d7d3a3"
+                      },
+                      {
+                          "parameters":  {
+                                             "jsCode":  "     const store = $getWorkflowStaticData(\u0027global\u0027);\n     const body = $input.first().json.body;\n     const key = body.memoryKey;\n     const history = store[key] || [];\n\n     const system = {\n       role: \u0027system\u0027,\n       content: \u0027你是一個 WhatsApp 群組 AI 助手。請根據該使用者在該群組的上下文回答，使用繁體中文，簡潔自然。\u0027\n     };\n\n     if (body.command === \u0027memory\u0027) {\n       return [{\n         json: {\n           ...body,\n           messages: [\n             system,\n             ...history,\n             {\n               role: \u0027user\u0027,\n               content: \u0027請總結你目前記得關於我的資訊。若沒有記憶，請說目前沒有足夠記憶。\u0027\n             }\n           ],\n           existingMemory: history\n         }\n       }];\n     }\n\n     return [{\n       json: {\n         ...body,\n         messages: [\n           system,\n           ...history,\n           {\n             role: \u0027user\u0027,\n             content: body.text\n           }\n         ],\n         existingMemory: history\n       }\n     }];"
+                                         },
+                          "type":  "n8n-nodes-base.code",
+                          "typeVersion":  2,
+                          "position":  [
+                                           -272,
+                                           -80
+                                       ],
+                          "id":  "4a7197f8-03e0-45a6-8b08-2e1e4643925f",
+                          "name":  "prepare memory"
+                      },
+                      {
+                          "parameters":  {
+                                             "method":  "POST",
+                                             "url":  "https://api.deepseek.com/chat/completions",
+                                             "authentication":  "genericCredentialType",
+                                             "genericAuthType":  "httpHeaderAuth",
+                                             "sendBody":  true,
+                                             "specifyBody":  "json",
+                                             "jsonBody":  "=     {\n       \"model\": \"deepseek-v4-flash\",\n       \"messages\": {{ JSON.stringify($json.messages) }},\n       \"stream\": false\n     }",
+                                             "options":  {
+
+                                                         }
+                                         },
+                          "type":  "n8n-nodes-base.httpRequest",
+                          "typeVersion":  4.4,
+                          "position":  [
+                                           -48,
+                                           -80
+                                       ],
+                          "id":  "50f5d5d1-9597-4e26-b20a-de325ad7a764",
+                          "name":  "Deepseek",
+                          "credentials":  {
+                                              "httpHeaderAuth":  {
+                                                                     "id":  "ACXsfX5WhExX9qyc",
+                                                                     "name":  "Header Auth account"
+                                                                 }
+                                          }
+                      },
+                      {
+                          "parameters":  {
+                                             "method":  "POST",
+                                             "url":  "http://whatsapp-bridge:3000/send-message",
+                                             "sendBody":  true,
+                                             "bodyParameters":  {
+                                                                    "parameters":  [
+                                                                                       {
+                                                                                           "name":  "to",
+                                                                                           "value":  "=Value: {{ $json.to }}"
+                                                                                       },
+                                                                                       {
+                                                                                           "name":  "message",
+                                                                                           "value":  "=Value: {{ $json.message }}"
+                                                                                       }
+                                                                                   ]
+                                                                },
+                                             "options":  {
+
+                                                         }
+                                         },
+                          "type":  "n8n-nodes-base.httpRequest",
+                          "typeVersion":  4.4,
+                          "position":  [
+                                           400,
+                                           -80
+                                       ],
+                          "id":  "a4e6a994-522f-45aa-80b9-df181f766804",
+                          "name":  "return message"
+                      },
+                      {
+                          "parameters":  {
+                                             "jsCode":  "     const store = $getWorkflowStaticData(\u0027global\u0027);\n\n     const input = $(\u0027prepare memory\u0027).first().json;\n     const deepseekOutput = $input.first().json;\n\n     const aiReply = deepseekOutput.choices?.[0]?.message?.content;\n     const limit = input.memoryLimit || 10;\n\n     if (!aiReply) {\n       throw new Error(\u0027DeepSeek did not return choices[0].message.content\u0027);\n     }\n\n     let history = input.existingMemory || [];\n\n     if (input.command !== \u0027memory\u0027) {\n       history.push({ role: \u0027user\u0027, content: input.text });\n       history.push({ role: \u0027assistant\u0027, content: aiReply });\n       history = history.slice(-limit);\n       store[input.memoryKey] = history;\n     }\n\n     return [{\n       json: {\n         to: input.groupId,\n         message: aiReply\n       }\n     }];"
+                                         },
+                          "type":  "n8n-nodes-base.code",
+                          "typeVersion":  2,
+                          "position":  [
+                                           176,
+                                           -80
+                                       ],
+                          "id":  "b7ee89c9-7ada-46c8-a0a7-36c744899a2d",
+                          "name":  "save memory"
+                      },
+                      {
+                          "parameters":  {
+                                             "rules":  {
+                                                           "values":  [
+                                                                          {
+                                                                              "conditions":  {
+                                                                                                 "options":  {
+                                                                                                                 "caseSensitive":  true,
+                                                                                                                 "leftValue":  "",
+                                                                                                                 "typeValidation":  "strict",
+                                                                                                                 "version":  3
+                                                                                                             },
+                                                                                                 "conditions":  [
+                                                                                                                    {
+                                                                                                                        "leftValue":  "={{ $json.body.command }}",
+                                                                                                                        "rightValue":  "chat",
+                                                                                                                        "operator":  {
+                                                                                                                                         "type":  "string",
+                                                                                                                                         "operation":  "equals"
+                                                                                                                                     },
+                                                                                                                        "id":  "e457a94f-2f26-4314-936a-5b65307b793f"
+                                                                                                                    }
+                                                                                                                ],
+                                                                                                 "combinator":  "and"
+                                                                                             }
+                                                                          },
+                                                                          {
+                                                                              "conditions":  {
+                                                                                                 "options":  {
+                                                                                                                 "caseSensitive":  true,
+                                                                                                                 "leftValue":  "",
+                                                                                                                 "typeValidation":  "strict",
+                                                                                                                 "version":  3
+                                                                                                             },
+                                                                                                 "conditions":  [
+                                                                                                                    {
+                                                                                                                        "id":  "db283417-04c3-4932-a688-0b3b6aaa732b",
+                                                                                                                        "leftValue":  "={{ $json.body.command }}",
+                                                                                                                        "rightValue":  "image",
+                                                                                                                        "operator":  {
+                                                                                                                                         "type":  "string",
+                                                                                                                                         "operation":  "equals",
+                                                                                                                                         "name":  "filter.operator.equals"
+                                                                                                                                     }
+                                                                                                                    }
+                                                                                                                ],
+                                                                                                 "combinator":  "and"
+                                                                                             }
+                                                                          }
+                                                                      ]
+                                                       },
+                                             "options":  {
+
+                                                         }
+                                         },
+                          "type":  "n8n-nodes-base.switch",
+                          "typeVersion":  3.4,
+                          "position":  [
+                                           -496,
+                                           112
+                                       ],
+                          "id":  "68009f46-66c2-4575-bcc4-9338bf52f439",
+                          "name":  "Switch"
+                      },
+                      {
+                          "parameters":  {
+                                             "method":  "POST",
+                                             "url":  "https://api.lel190.dev/v1/images/generations",
+                                             "sendHeaders":  true,
+                                             "headerParameters":  {
+                                                                      "parameters":  [
+                                                                                         {
+                                                                                             "name":  "Authorization",
+                                                                                             "value":  "Bearer YOUR_API_KEY"
+                                                                                         },
+                                                                                         {
+                                                                                             "name":  "Content-Type",
+                                                                                             "value":  "application/json"
+                                                                                         }
+                                                                                     ]
+                                                                  },
+                                             "sendBody":  true,
+                                             "specifyBody":  "json",
+                                             "jsonBody":  "=     {\n       \"model\": \"gpt-image-2\",\n       \"prompt\": \"{{ $json.body.prompt }}\",\n       \"size\": \"1024x1024\"\n      }",
+                                             "options":  {
+
+                                                         }
+                                         },
+                          "type":  "n8n-nodes-base.httpRequest",
+                          "typeVersion":  4.4,
+                          "position":  [
+                                           176,
+                                           304
+                                       ],
+                          "id":  "971adb65-9670-42be-be92-2b9c4a84f842",
+                          "name":  "Gpt-image2"
+                      },
+                      {
+                          "parameters":  {
+                                             "method":  "POST",
+                                             "url":  "http://whatsapp-bridge:3000/send-image",
+                                             "sendBody":  true,
+                                             "bodyParameters":  {
+                                                                    "parameters":  [
+                                                                                       {
+                                                                                           "name":  "to",
+                                                                                           "value":  "={{ $(\u0027Webhook\u0027).item.json.body.groupId }}"
+                                                                                       },
+                                                                                       {
+                                                                                           "name":  "imageBase64",
+                                                                                           "value":  "={{ $json.data[0].b64_json }}"
+                                                                                       },
+                                                                                       {
+                                                                                           "name":  "caption",
+                                                                                           "value":  "=生成完成"
+                                                                                       },
+                                                                                       {
+                                                                                           "name":  "mimetype",
+                                                                                           "value":  "image/png"
+                                                                                       },
+                                                                                       {
+                                                                                           "name":  "filename",
+                                                                                           "value":  "ai-image.png"
+                                                                                       }
+                                                                                   ]
+                                                                },
+                                             "options":  {
+
+                                                         }
+                                         },
+                          "type":  "n8n-nodes-base.httpRequest",
+                          "typeVersion":  4.4,
+                          "position":  [
+                                           400,
+                                           208
+                                       ],
+                          "id":  "eb0ba4dd-5f00-47f1-a57b-cf8798c1af98",
+                          "name":  "return image"
+                      },
+                      {
+                          "parameters":  {
+                                             "conditions":  {
+                                                                "options":  {
+                                                                                "caseSensitive":  true,
+                                                                                "leftValue":  "",
+                                                                                "typeValidation":  "strict",
+                                                                                "version":  3
+                                                                            },
+                                                                "conditions":  [
+                                                                                   {
+                                                                                       "id":  "ec71471e-e475-4ae9-864b-1175d5507905",
+                                                                                       "leftValue":  "={{ $json.body.mode }}",
+                                                                                       "rightValue":  "edit",
+                                                                                       "operator":  {
+                                                                                                        "type":  "string",
+                                                                                                        "operation":  "equals",
+                                                                                                        "name":  "filter.operator.equals"
+                                                                                                    }
+                                                                                   }
+                                                                               ],
+                                                                "combinator":  "and"
+                                                            },
+                                             "options":  {
+
+                                                         }
+                                         },
+                          "type":  "n8n-nodes-base.if",
+                          "typeVersion":  2.3,
+                          "position":  [
+                                           -272,
+                                           208
+                                       ],
+                          "id":  "f65e8e1a-d1e6-412a-b87c-30ef249ef24a",
+                          "name":  "If"
+                      },
+                      {
+                          "parameters":  {
+                                             "jsCode":  "     const body = $input.first().json.body || $input.first().json;\n\n     return [\n       {\n         json: body,\n         binary: {\n           image: {\n             data: body.image.data,\n             mimeType: body.image.mimetype || \"image/png\",\n             fileName: body.image.filename || \"input-image.png\",\n           },\n         },\n       },\n     ];"
+                                         },
+                          "type":  "n8n-nodes-base.code",
+                          "typeVersion":  2,
+                          "position":  [
+                                           -48,
+                                           112
+                                       ],
+                          "id":  "207eadca-98db-4008-bd1d-1ab2fae3810e",
+                          "name":  "prepare image binary"
+                      },
+                      {
+                          "parameters":  {
+                                             "method":  "POST",
+                                             "url":  "https://api.lel190.dev/v1/images/edits",
+                                             "sendHeaders":  true,
+                                             "headerParameters":  {
+                                                                      "parameters":  [
+                                                                                         {
+                                                                                             "name":  "Authorization",
+                                                                                             "value":  "Bearer YOUR_API_KEY"
+                                                                                         }
+                                                                                     ]
+                                                                  },
+                                             "sendBody":  true,
+                                             "contentType":  "multipart-form-data",
+                                             "bodyParameters":  {
+                                                                    "parameters":  [
+                                                                                       {
+                                                                                           "name":  "model",
+                                                                                           "value":  "gpt-image-2"
+                                                                                       },
+                                                                                       {
+                                                                                           "name":  "prompt",
+                                                                                           "value":  "={{ $json.prompt }}"
+                                                                                       },
+                                                                                       {
+                                                                                           "name":  "size",
+                                                                                           "value":  "1024x1024"
+                                                                                       },
+                                                                                       {
+                                                                                           "parameterType":  "formBinaryData",
+                                                                                           "name":  "image",
+                                                                                           "inputDataFieldName":  "image"
+                                                                                       }
+                                                                                   ]
+                                                                },
+                                             "options":  {
+
+                                                         }
+                                         },
+                          "type":  "n8n-nodes-base.httpRequest",
+                          "typeVersion":  4.4,
+                          "position":  [
+                                           176,
+                                           112
+                                       ],
+                          "id":  "b1c78dd1-7589-4317-a477-794534d94b42",
+                          "name":  "edit Gpt image2"
+                      }
+                  ],
+        "connections":  {
+                            "Webhook":  {
+                                            "main":  [
+                                                         [
+                                                             {
+                                                                 "node":  "Switch",
+                                                                 "type":  "main",
+                                                                 "index":  0
+                                                             }
+                                                         ]
+                                                     ]
+                                        },
+                            "prepare memory":  {
+                                                   "main":  [
+                                                                [
+                                                                    {
+                                                                        "node":  "Deepseek",
+                                                                        "type":  "main",
+                                                                        "index":  0
+                                                                    }
+                                                                ]
+                                                            ]
+                                               },
+                            "Deepseek":  {
+                                             "main":  [
+                                                          [
+                                                              {
+                                                                  "node":  "save memory",
+                                                                  "type":  "main",
+                                                                  "index":  0
+                                                              }
+                                                          ]
+                                                      ]
+                                         },
+                            "save memory":  {
+                                                "main":  [
+                                                             [
+                                                                 {
+                                                                     "node":  "return message",
+                                                                     "type":  "main",
+                                                                     "index":  0
+                                                                 }
+                                                             ]
+                                                         ]
+                                            },
+                            "Switch":  {
+                                           "main":  [
+                                                        [
+                                                            {
+                                                                "node":  "prepare memory",
+                                                                "type":  "main",
+                                                                "index":  0
+                                                            }
+                                                        ],
+                                                        [
+                                                            {
+                                                                "node":  "If",
+                                                                "type":  "main",
+                                                                "index":  0
+                                                            }
+                                                        ]
+                                                    ]
+                                       },
+                            "Gpt-image2":  {
+                                               "main":  [
+                                                            [
+                                                                {
+                                                                    "node":  "return image",
+                                                                    "type":  "main",
+                                                                    "index":  0
+                                                                }
+                                                            ]
+                                                        ]
+                                           },
+                            "If":  {
+                                       "main":  [
+                                                    [
+                                                        {
+                                                            "node":  "prepare image binary",
+                                                            "type":  "main",
+                                                            "index":  0
+                                                        }
+                                                    ],
+                                                    [
+                                                        {
+                                                            "node":  "Gpt-image2",
+                                                            "type":  "main",
+                                                            "index":  0
+                                                        }
+                                                    ]
+                                                ]
+                                   },
+                            "prepare image binary":  {
+                                                         "main":  [
+                                                                      [
+                                                                          {
+                                                                              "node":  "edit Gpt image2",
+                                                                              "type":  "main",
+                                                                              "index":  0
+                                                                          }
+                                                                      ]
+                                                                  ]
+                                                     },
+                            "edit Gpt image2":  {
+                                                    "main":  [
+                                                                 [
+                                                                     {
+                                                                         "node":  "return image",
+                                                                         "type":  "main",
+                                                                         "index":  0
+                                                                     }
+                                                                 ]
+                                                             ]
+                                                }
+                        },
+        "settings":  {
+                         "executionOrder":  "v1",
+                         "binaryMode":  "separate"
+                     },
+        "meta":  null,
+        "pinData":  {
+
+                    },
+        "versionId":  "33893537-4098-415e-9c02-9c4aba67743a",
+        "activeVersionId":  "33893537-4098-415e-9c02-9c4aba67743a",
+        "versionCounter":  177,
+        "triggerCount":  1,
+        "tags":  [
+
+                 ],
+        "versionMetadata":  {
+                                "name":  "Version 33893537",
+                                "description":  ""
+                            }
+    },
+    {
+        "updatedAt":  "2026-05-30T15:43:56.225Z",
+        "createdAt":  "2026-05-30T15:43:33.321Z",
+        "id":  "MA9qOcxrzHWIjFgc",
+        "name":  "My workflow 2",
+        "description":  null,
+        "active":  false,
+        "isArchived":  false,
+        "nodes":  [
+                      {
+                          "parameters":  {
+                                             "path":  "19f1b8aa-ff98-4617-9e21-982a96ae0f30",
+                                             "options":  {
+
+                                                         }
+                                         },
+                          "type":  "n8n-nodes-base.webhook",
+                          "typeVersion":  2.1,
+                          "position":  [
+                                           0,
+                                           0
+                                       ],
+                          "id":  "c5e10921-1124-400c-8cfe-24a695fc01c6",
+                          "name":  "Webhook",
+                          "webhookId":  "19f1b8aa-ff98-4617-9e21-982a96ae0f30"
+                      }
+                  ],
+        "connections":  {
+
+                        },
+        "settings":  {
+                         "executionOrder":  "v1",
+                         "binaryMode":  "separate"
+                     },
+        "meta":  null,
+        "pinData":  {
+
+                    },
+        "versionId":  "adc0d747-d9f1-4946-a9e8-167cd0d48eef",
+        "activeVersionId":  null,
+        "versionCounter":  3,
+        "triggerCount":  1,
+        "tags":  [
+
+                 ],
+        "versionMetadata":  {
+                                "name":  "Version adc0d747",
+                                "description":  ""
+                            }
+    }
+]

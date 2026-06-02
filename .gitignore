@@ -1,0 +1,7 @@
+node_modules/
+.env
+session/
+n8n_data/
+whatsapp_session/
+*.log
+n8n/workflows/*.raw.json
