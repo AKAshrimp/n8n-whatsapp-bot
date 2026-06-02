@@ -1,83 +1,84 @@
 # n8n WhatsApp Bot
 
-本專案是一個本機 Docker 版 WhatsApp AI 群組助手。  
-在指定 WhatsApp group 裡發送 `@ai 問題`，bot 會把訊息送到 n8n，n8n 呼叫 DeepSeek API，再把 AI 回覆送回原本發問的 group。
+This project is a local Docker-based WhatsApp AI group assistant.  
+When someone sends `@ai question` in an allowed WhatsApp group, the bot forwards the message to n8n, n8n calls the DeepSeek API, and the AI reply is sent back to the original group.
 
-## 目前功能
+## Current Features
 
-- WhatsApp Web 掃碼登入
-- 只偵測指定 WhatsApp groups
-- 只處理真正的 `@ai` 指令
-- 非 `@ai` 訊息直接忽略、不印 log
-- n8n workflow 呼叫 DeepSeek API
-- 回覆會送回原本發問的 group
-- Per-user memory：
-  - 使用 `memoryKey = groupId:userId`
-  - 不同 group / 不同 user 的記憶分開
-  - 每個 user 最多保留最近 10 筆 messages
-- `@ai memory`：總結目前 AI 對該 user 的記憶
-- `@aiimg`：圖片功能指令
-  - 文字生圖：`@aiimg 一隻貓在香港喝奶茶`
-  - 圖片修改：傳圖片並在 caption 寫 `@aiimg 幫我改成漫畫風`
+- WhatsApp Web QR-code login
+- Only monitors configured WhatsApp groups
+- Only handles real `@ai` commands
+- Ignores non-`@ai` messages without logging them
+- n8n workflow calls the DeepSeek API
+- Replies are sent back to the original group
+- Per-user memory:
+  - Uses `memoryKey = groupId:userId`
+  - Separates memory by group and user
+  - Keeps up to the latest 10 messages per user
+- `@ai memory`: summarizes what the AI currently remembers about that user
+- `@aiimg`: image command
+  - Text-to-image: `@aiimg a cat drinking milk tea in Hong Kong`
+  - Image editing: send an image and write `@aiimg make this comic style` in the caption
 
-## 專案檔案
+## Project Files
 
-| 檔案 | 用途 |
+| File | Purpose |
 |---|---|
-| `docker-compose.yml` | 啟動 n8n 與 whatsapp-bridge |
-| `Dockerfile` | 建立 whatsapp-bridge container |
+| `docker-compose.yml` | Starts n8n and whatsapp-bridge |
+| `Dockerfile` | Builds the whatsapp-bridge container |
 | `package.json` | Node.js dependencies |
-| `index.js` | WhatsApp Bridge 主程式 |
-| `n8n-nodes.md` | n8n nodes 設定紀錄 |
-| `technical-guide.html` | 技術學習文檔，用瀏覽器打開看 |
-| `plan.md` | 開發計畫與 checklist |
+| `index.js` | Main WhatsApp bridge program |
+| `n8n-nodes.md` | n8n node configuration notes |
+| `technical-guide.html` | Technical learning guide; open it in a browser |
+| `plan.md` | Development plan and checklist |
+| `n8n/workflows/workflows.json` | Sanitized exported n8n workflow |
 
-## 明天開機後怎麼恢復
+## How to Resume After Reboot
 
-先打開 Docker Desktop，等它啟動完成。
+Open Docker Desktop first and wait until it finishes starting.
 
-進入專案資料夾：
+Enter the project folder:
 
 ```powershell
 cd C:\Users\USER\Desktop\n8n-whatsapp-bot
 ```
 
-啟動 containers：
+Start the containers:
 
 ```powershell
 docker compose up -d
 ```
 
-看狀態：
+Check container status:
 
 ```powershell
 docker ps
 ```
 
-看 WhatsApp bridge logs：
+Check WhatsApp bridge logs:
 
 ```powershell
 docker logs whatsapp-bridge --tail 120
 ```
 
-成功狀態應該看到：
+Successful startup should show:
 
 ```txt
 WhatsApp Client authenticated.
 WhatsApp Client is ready!
 ```
 
-如果看到 QR Code，就用手機 WhatsApp 掃碼登入。
+If a QR code appears, scan it with WhatsApp on your phone.
 
-## 如果遇到 Chromium profile lock
+## If You Hit a Chromium Profile Lock
 
-如果 logs 看到：
+If the logs show:
 
 ```txt
 The profile appears to be in use by another Chromium process
 ```
 
-執行：
+Run:
 
 ```powershell
 docker compose stop whatsapp-bridge
@@ -85,7 +86,7 @@ docker run --rm -v n8n-whatsapp-bot_whatsapp_session:/data alpine sh -c "rm -f /
 docker compose start whatsapp-bridge
 ```
 
-再確認：
+Then check again:
 
 ```powershell
 docker logs whatsapp-bridge --tail 80
@@ -93,13 +94,13 @@ docker logs whatsapp-bridge --tail 80
 
 ## n8n
 
-瀏覽器打開：
+Open in your browser:
 
 ```txt
 http://localhost:5678
 ```
 
-workflow 順序：
+Workflow order:
 
 ```txt
 Webhook
@@ -109,58 +110,58 @@ Webhook
 → return message
 ```
 
-圖片 workflow 建議分支：
+Recommended image workflow branch:
 
 ```txt
 Webhook
 → Switch command
-  ├─ chat / memory → 原本文字 workflow
+  ├─ chat / memory → existing text workflow
   └─ image → Image API → return image
 ```
 
-詳細每個 node 的設定看：
+For detailed node configuration, see:
 
 ```txt
 n8n-nodes.md
 ```
 
-如果修改 workflow，記得 **Publish**。
+If you modify the workflow, remember to **Publish** it.
 
-## 測試方式
+## Testing
 
-在允許的 WhatsApp group 發：
+Send this in an allowed WhatsApp group:
 
 ```txt
 @ai hi
 ```
 
-測 memory：
+Test memory:
 
 ```txt
-@ai 我叫 Alex
+@ai my name is Alex
 @ai memory
 ```
 
-測圖片指令：
+Test image generation:
 
 ```txt
-@aiimg 一隻穿西裝的柴犬在中環街頭
+@aiimg a Shiba Inu wearing a suit on a Central street
 ```
 
-圖片修改：
+Test image editing:
 
 ```txt
-傳一張圖片，caption 寫：
-@aiimg 幫我改成 cyberpunk 風格
+Send an image and write this in the caption:
+@aiimg make this cyberpunk style
 ```
 
-確認 logs：
+Check logs:
 
 ```powershell
 docker logs whatsapp-bridge --since 5m
 ```
 
-正常會看到：
+Expected logs:
 
 ```txt
 [Received] ...
@@ -168,15 +169,15 @@ docker logs whatsapp-bridge --since 5m
 [Sent] To: ... | Message: ...
 ```
 
-## 目前允許的 groups
+## Currently Allowed Groups
 
-在 `docker-compose.yml`：
+Configured in `docker-compose.yml`:
 
 ```txt
 TARGET_GROUP_NAMES=Private Wutsapp Group,珍•Marathon Part-time•珠
 ```
 
-程式會忽略 group name 裡的半形 / 全形括號：
+The program ignores half-width and full-width parentheses in group names:
 
 ```txt
 珍•Marathon Part-time•珠
@@ -184,41 +185,41 @@ TARGET_GROUP_NAMES=Private Wutsapp Group,珍•Marathon Part-time•珠
 （珍•Marathon Part-time•珠）
 ```
 
-## 重要觀念
+## Important Concepts
 
-- Windows 瀏覽器看 n8n：`http://localhost:5678`
-- Docker container 互相呼叫：
-  - n8n：`http://n8n:5678`
-  - whatsapp bridge：`http://whatsapp-bridge:3000`
-- bot 打 n8n production webhook：
+- Access n8n from the Windows browser: `http://localhost:5678`
+- Docker containers call each other by service name:
+  - n8n: `http://n8n:5678`
+  - whatsapp bridge: `http://whatsapp-bridge:3000`
+- The bot calls the n8n production webhook:
 
 ```txt
 http://n8n:5678/webhook/whatsapp-trigger
 ```
 
-- n8n 回 WhatsApp bridge：
+- n8n sends text replies back to the WhatsApp bridge:
 
 ```txt
 http://whatsapp-bridge:3000/send-message
 ```
 
-- n8n 回 WhatsApp bridge 發圖片：
+- n8n sends image replies back to the WhatsApp bridge:
 
 ```txt
 http://whatsapp-bridge:3000/send-image
 ```
 
-`/send-image` 支援兩種 body：
+`/send-image` supports two body formats:
 
 ```json
 {
   "to": "groupId@g.us",
   "imageUrl": "https://example.com/image.png",
-  "caption": "生成完成"
+  "caption": "Generated"
 }
 ```
 
-或：
+Or:
 
 ```json
 {
@@ -226,20 +227,20 @@ http://whatsapp-bridge:3000/send-image
   "imageBase64": "base64...",
   "mimetype": "image/png",
   "filename": "ai-image.png",
-  "caption": "生成完成"
+  "caption": "Generated"
 }
 ```
 
-## 關機前
+## Before Shutting Down
 
-可以直接關機。  
-如果想先停掉 containers：
+You can shut down directly.  
+If you want to stop the containers first:
 
 ```powershell
 docker compose stop
 ```
 
-明天再用：
+Use this tomorrow to start them again:
 
 ```powershell
 docker compose up -d
