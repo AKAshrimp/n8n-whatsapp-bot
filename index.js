@@ -24,6 +24,7 @@ const express = require("express"); // HTTP Server framework，用來接收 n8n 
 const axios = require("axios"); // HTTP Client library，用來發送 Webhook 到 n8n
 const {
   classifyIncomingText,
+  createOutgoingMessageTracker,
   createStableMessageId,
   getImagePayloadFromMessage,
   isRecordableText,
@@ -51,6 +52,7 @@ const TARGET_GROUP_NAMES = (
 // 只監聽這些 WhatsApp Group 名稱，避免其他群組誤觸發 bot
 const MEMORY_LIMIT = Number(process.env.MEMORY_LIMIT || 10);
 // 每個 group + user 最多保留幾筆 memory
+const outgoingMessageTracker = createOutgoingMessageTracker();
 
 // normalizeGroupName(name) → 標準化 group 名稱，移除半形/全形括號後再比對
 function normalizeGroupName(name) {
@@ -167,7 +169,12 @@ client.on("message_create", async (msg) => {
   const userId = getMessageUserId(msg);
 
   if (command === "record") {
-    if (msg.fromMe) return;
+    if (
+      msg.fromMe &&
+      outgoingMessageTracker.isKnownOutgoing({ from: groupId, text })
+    ) {
+      return;
+    }
     if (!isRecordableText(text)) return;
   }
 
@@ -273,6 +280,10 @@ app.post("/send-message", async (req, res) => {
     // client.getChatById(targetChatId) → 先確認目標 chat 存在
     // chat.sendMessage(outgoingMessage) → 再把訊息送到該 chat，對群組更穩定
     const chat = await client.getChatById(targetChatId);
+    outgoingMessageTracker.remember({
+      to: targetChatId,
+      text: outgoingMessage,
+    });
     await chat.sendMessage(outgoingMessage);
     console.log(`[Sent] To: ${targetChatId} | Message: ${outgoingMessage}`);
     // res.json({...}) → 回傳 HTTP 200（預設）+ JSON 回應

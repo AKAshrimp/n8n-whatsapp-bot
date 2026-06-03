@@ -61,6 +61,7 @@ test("falls back to generate mode when no image media is available", async () =>
 
 const {
   classifyIncomingText,
+  createOutgoingMessageTracker,
   isRecordableText,
   createStableMessageId,
 } = require("./message-utils");
@@ -199,4 +200,45 @@ test("creates different UUID message ids for different source material", () => {
   assert.notEqual(firstId, secondId);
   assert.notEqual(firstId, fallbackId);
   assert.notEqual(secondId, fallbackId);
+});
+
+test("tracks a sent bot message and recognizes it once", () => {
+  const tracker = createOutgoingMessageTracker({ ttlMs: 30000 });
+
+  tracker.remember({ to: "group-1", text: "AI reply", now: 1000 });
+
+  assert.equal(
+    tracker.isKnownOutgoing({ from: "group-1", text: "AI reply", now: 1000 }),
+    true
+  );
+  assert.equal(
+    tracker.isKnownOutgoing({ from: "group-1", text: "AI reply", now: 1000 }),
+    false
+  );
+});
+
+test("does not recognize unrelated self-sent text", () => {
+  const tracker = createOutgoingMessageTracker({ ttlMs: 30000 });
+
+  tracker.remember({ to: "group-1", text: "AI reply", now: 1000 });
+
+  assert.equal(
+    tracker.isKnownOutgoing({
+      from: "group-1",
+      text: "manual message",
+      now: 1000,
+    }),
+    false
+  );
+});
+
+test("expires old sent bot messages", () => {
+  const tracker = createOutgoingMessageTracker({ ttlMs: 1000 });
+
+  tracker.remember({ to: "group-1", text: "AI reply", now: 1000 });
+
+  assert.equal(
+    tracker.isKnownOutgoing({ from: "group-1", text: "AI reply", now: 2001 }),
+    false
+  );
 });

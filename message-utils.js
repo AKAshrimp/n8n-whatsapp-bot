@@ -62,6 +62,46 @@ function classifyIncomingText(value) {
   };
 }
 
+function createOutgoingMessageTracker({ ttlMs = 30000, maxSize = 100 } = {}) {
+  const messages = [];
+
+  function normalizeKey(value) {
+    return normalizeText(value).toLowerCase();
+  }
+
+  function cleanup(now = Date.now()) {
+    while (messages.length > 0 && now - messages[0].createdAt > ttlMs) {
+      messages.shift();
+    }
+    while (messages.length > maxSize) {
+      messages.shift();
+    }
+  }
+
+  return {
+    remember({ to, text, now = Date.now() }) {
+      cleanup(now);
+      const target = normalizeKey(to);
+      const body = normalizeKey(text);
+      if (!target || !body) return;
+      messages.push({ target, body, createdAt: now });
+      cleanup(now);
+    },
+
+    isKnownOutgoing({ from, text, now = Date.now() }) {
+      cleanup(now);
+      const target = normalizeKey(from);
+      const body = normalizeKey(text);
+      const index = messages.findIndex(
+        (message) => message.target === target && message.body === body
+      );
+      if (index === -1) return false;
+      messages.splice(index, 1);
+      return true;
+    },
+  };
+}
+
 function createStableMessageId(message, fallback = {}) {
   const nativeId = message?.id?._serialized || message?.id?.id;
   const source = nativeId
@@ -132,6 +172,7 @@ async function getImagePayloadFromMessage(message) {
 
 module.exports = {
   classifyIncomingText,
+  createOutgoingMessageTracker,
   createStableMessageId,
   getImagePayloadFromMessage,
   isRecordableText,
