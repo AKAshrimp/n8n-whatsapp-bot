@@ -1,4 +1,4 @@
-﻿[
+[
     {
         "updatedAt":  "2026-06-02T05:33:27.513Z",
         "createdAt":  "2026-05-30T14:13:18.758Z",
@@ -423,7 +423,7 @@
                                              "url":  "http://qdrant:6333/collections/whatsapp_memory",
                                              "sendBody":  true,
                                              "specifyBody":  "json",
-                                             "jsonBody":  "={\n  \"vectors\": {\n    \"size\": 1536,\n    \"distance\": \"Cosine\"\n  }\n}",
+                                             "jsonBody":  "={\n  \"vectors\": {\n    \"size\": 1024,\n    \"distance\": \"Cosine\"\n  }\n}",
                                              "options":  {
 
                                                          }
@@ -453,7 +453,7 @@
                       {
                           "parameters":  {
                                              "method":  "POST",
-                                             "url":  "https://api.openai.com/v1/embeddings",
+                                             "url":  "https://tokendance.space/gateway/v1/embeddings",
                                              "sendHeaders":  true,
                                              "headerParameters":  {
                                                                       "parameters":  [
@@ -469,7 +469,7 @@
                                                                   },
                                              "sendBody":  true,
                                              "specifyBody":  "json",
-                                             "jsonBody":  "={\n  \"model\": \"text-embedding-3-small\",\n  \"input\": \"{{ $json.text }}\"\n}",
+                                             "jsonBody":  "={\n  \"model\": \"qwen-text-embedding-v4\",\n  \"input\": \"{{ $json.text }}\"\n}",
                                              "options":  {
 
                                                          }
@@ -481,11 +481,11 @@
                                            360
                                        ],
                           "id":  "rag-openai-embed-record",
-                          "name":  "openai embed record"
+                          "name":  "qwen embed record"
                       },
                       {
                           "parameters":  {
-                                             "jsCode":  "const original = $(\"prepare memory point\").first().json;\nconst embedding = $json.data?.[0]?.embedding;\n\nif (!Array.isArray(embedding)) {\n  throw new Error(\"OpenAI embedding missing at data[0].embedding\");\n}\n\nreturn [\n  {\n    json: {\n      points: [\n        {\n          id: original.messageId,\n          vector: embedding,\n          payload: {\n            messageId: original.messageId,\n            groupId: original.groupId,\n            groupName: original.groupName,\n            userId: original.userId,\n            userName: original.userName ?? original.userId,\n            text: original.text,\n            timestamp: original.timestamp,\n            expiresAt: original.expiresAt,\n            type: \"whatsapp_message\",\n            source: \"whatsapp-bridge\",\n          },\n        },\n      ],\n    },\n  },\n];"
+                                             "jsCode":  "const original = $(\"prepare memory point\").first().json;\nconst embedding = $json.data?.[0]?.embedding;\n\nif (!Array.isArray(embedding)) {\n  throw new Error(\"Embedding missing at data[0].embedding\");\n}\n\nreturn [\n  {\n    json: {\n      points: [\n        {\n          id: original.messageId,\n          vector: embedding,\n          payload: {\n            messageId: original.messageId,\n            groupId: original.groupId,\n            groupName: original.groupName,\n            userId: original.userId,\n            userName: original.userName ?? original.userId,\n            text: original.text,\n            timestamp: original.timestamp,\n            expiresAt: original.expiresAt,\n            type: \"whatsapp_message\",\n            source: \"whatsapp-bridge\",\n          },\n        },\n      ],\n    },\n  },\n];"
                                          },
                           "type":  "n8n-nodes-base.code",
                           "typeVersion":  2,
@@ -519,7 +519,7 @@
                       {
                           "parameters":  {
                                              "method":  "POST",
-                                             "url":  "https://api.openai.com/v1/embeddings",
+                                             "url":  "https://tokendance.space/gateway/v1/embeddings",
                                              "sendHeaders":  true,
                                              "headerParameters":  {
                                                                       "parameters":  [
@@ -535,7 +535,7 @@
                                                                   },
                                              "sendBody":  true,
                                              "specifyBody":  "json",
-                                             "jsonBody":  "={\n  \"model\": \"text-embedding-3-small\",\n  \"input\": \"{{ $json.body.text }}\"\n}",
+                                             "jsonBody":  "={\n  \"model\": \"qwen-text-embedding-v4\",\n  \"input\": \"{{ $json.body.text }}\"\n}",
                                              "options":  {
 
                                                          }
@@ -547,11 +547,11 @@
                                            -240
                                        ],
                           "id":  "rag-openai-embed-question",
-                          "name":  "openai embed question"
+                          "name":  "qwen embed question"
                       },
                       {
                           "parameters":  {
-                                             "jsCode":  "const body = $(\"Webhook\").first().json.body;\nconst embedding = $json.data?.[0]?.embedding;\n\nif (!Array.isArray(embedding)) {\n  throw new Error(\"OpenAI embedding missing at data[0].embedding\");\n}\n\nreturn [\n  {\n    json: {\n      vector: embedding,\n      limit: 8,\n      filter: {\n        must: [\n          {\n            key: \"groupId\",\n            match: {\n              value: body.groupId,\n            },\n          },\n        ],\n      },\n      with_payload: true,\n    },\n  },\n];"
+                                             "jsCode":  "const body = $(\"Webhook\").first().json.body;\nconst embedding = $json.data?.[0]?.embedding;\n\nif (!Array.isArray(embedding)) {\n  throw new Error(\"Embedding missing at data[0].embedding\");\n}\n\nreturn [\n  {\n    json: {\n      vector: embedding,\n      limit: 8,\n      filter: {\n        must: [\n          {\n            key: \"groupId\",\n            match: {\n              value: body.groupId,\n            },\n          },\n        ],\n      },\n      with_payload: true,\n    },\n  },\n];"
                                          },
                           "type":  "n8n-nodes-base.code",
                           "typeVersion":  2,
@@ -658,7 +658,7 @@
                                            "main":  [
                                                         [
                                                             {
-                                                                "node":  "openai embed question",
+                                                                               "node":  "qwen embed question",
                                                                 "type":  "main",
                                                                 "index":  0
                                                             }
@@ -693,7 +693,7 @@
                                                         ]
                                                     ]
                                        },
-                            "openai embed question":  {
+                            "qwen embed question":  {
                                                           "main":  [
                                                                        [
                                                                            {
@@ -763,14 +763,14 @@
                                                          "main":  [
                                                                       [
                                                                           {
-                                                                              "node":  "openai embed record",
+                                                                                 "node":  "qwen embed record",
                                                                               "type":  "main",
                                                                               "index":  0
                                                                           }
                                                                       ]
                                                                   ]
                                                      },
-                            "openai embed record":  {
+                            "qwen embed record":  {
                                                         "main":  [
                                                                      [
                                                                          {
