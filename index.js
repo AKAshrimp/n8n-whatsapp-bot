@@ -22,7 +22,13 @@ const { Client, LocalAuth, MessageMedia } = require("whatsapp-web.js"); // Whats
 const qrcode = require("qrcode-terminal"); // 在 terminal 顯示 QR Code
 const express = require("express"); // HTTP Server framework，用來接收 n8n 回傳的 AI 回覆
 const axios = require("axios"); // HTTP Client library，用來發送 Webhook 到 n8n
-const { getImagePayloadFromMessage } = require("./message-utils");
+const {
+  classifyIncomingText,
+  createOutgoingMessageTracker,
+  createStableMessageId,
+  getImagePayloadFromMessage,
+  isRecordableText,
+} = require("./message-utils");
 
 // ==========================================
 // 環境變數與常數 (Environment Variables & Constants)
@@ -46,10 +52,7 @@ const TARGET_GROUP_NAMES = (
 // 只監聽這些 WhatsApp Group 名稱，避免其他群組誤觸發 bot
 const MEMORY_LIMIT = Number(process.env.MEMORY_LIMIT || 10);
 // 每個 group + user 最多保留幾筆 memory
-const AI_COMMAND_PATTERN = /^@ai(?:\s+|$)/i;
-// 只接受 "@ai" 或 "@ai 空格..."，避免 "@air"、"@aigame" 這類文字誤觸發
-const IMAGE_COMMAND_PATTERN = /^@aiimg(?:\s+|$)/i;
-// 只接受 "@aiimg" 或 "@aiimg 空格..."，用來觸發生圖 / 改圖
+const outgoingMessageTracker = createOutgoingMessageTracker();
 
 // normalizeGroupName(name) → 標準化 group 名稱，移除半形/全形括號後再比對
 function normalizeGroupName(name) {
@@ -144,13 +147,10 @@ client.on("disconnected", (reason) => {
 client.on("message_create", async (msg) => {
   // msg.body → 訊息的文字內容（string）
   // .trim() → 字串方法：移除首尾空白字元
-  // .toLowerCase() → 字串方法：轉成小寫（這樣 @AI、@Ai 都能匹配）
-  // AI_COMMAND_PATTERN.test(body) → 檢查是否為真正的 @ai 指令
-  // IMAGE_COMMAND_PATTERN.test(body) → 檢查是否為真正的 @aiimg 指令
   const body = (msg.body || "").trim();
-  const isImageCommand = IMAGE_COMMAND_PATTERN.test(body);
-  const isAiCommand = AI_COMMAND_PATTERN.test(body);
-  if (!isAiCommand && !isImageCommand) return;
+  const classification = classifyIncomingText(body);
+  const { command, text, prompt, isImageCommand } = classification;
+  if (!text) return;
 
   // await msg.getChat() → 取得這則訊息所屬的 Chat 物件
   // chat.isGroup → 判斷這個 Chat 是否為 WhatsApp Group
@@ -168,23 +168,16 @@ client.on("message_create", async (msg) => {
   const groupId = chat.id._serialized;
   const userId = getMessageUserId(msg);
 
-  // .replace(正則表達式, 取代字串) → 字串方法：用正則匹配並取代
-  // /^@ai\s*/i → 正則表達式（Regular Expression / Regex）：
-  //   ^     → 匹配字串開頭
-  //   @ai   → 匹配字面文字 "@ai"
-  //   \s*   → 匹配零個或多個空白字元
-  //   i     → case-insensitive 旗標，不區分大小寫
-  // "" → 取代成空字串（等於刪除匹配到的部分）
-  const activeCommandPattern = isImageCommand
-    ? IMAGE_COMMAND_PATTERN
-    : AI_COMMAND_PATTERN;
-  const text = body.replace(activeCommandPattern, "").trim();
-  if (!text) return; // 如果 @ai 後面沒有文字就忽略
-  const command = isImageCommand
-    ? "image"
-    : text.toLowerCase() === "memory"
-      ? "memory"
-      : "chat";
+  if (command === "record") {
+    if (
+      msg.fromMe &&
+      outgoingMessageTracker.isKnownOutgoing({ from: groupId, text })
+    ) {
+      return;
+    }
+    if (!isRecordableText(text)) return;
+  }
+
   const memoryKey = `${groupId}:${userId}`;
 
   const { imageMode, imagePayload, imageSource } = isImageCommand
@@ -201,6 +194,13 @@ client.on("message_create", async (msg) => {
   // try 區塊：放「可能出錯」的程式碼
   // catch 區塊：如果 try 裡面出錯，會跳到這裡執行，err 參數包含錯誤資訊
   try {
+    const messageId = createStableMessageId(msg, {
+      groupId,
+      userId,
+      text,
+      timestamp: msg.timestamp,
+    });
+
     // await → 等待後方的 Promise（非同步操作）完成後才繼續往下執行
     // axios.post(url, data) → 發送 HTTP POST 請求
     //   url：目標網址（n8n Webhook URL）
@@ -210,12 +210,13 @@ client.on("message_create", async (msg) => {
       groupId: groupId, // 明確提供 groupId，讓 n8n 不需要猜
       groupName: chat.name, // 群組名稱
       userId: userId, // 發問者 ID
+      messageId: messageId, // 穩定訊息 ID，用於去重與記憶
       memoryKey: memoryKey, // groupId:userId，用來分開記憶
       command: command, // chat 或 memory
       mode: isImageCommand ? imageMode : undefined, // image 指令使用：generate 或 edit
       memoryLimit: MEMORY_LIMIT, // n8n 儲存 memory 時使用
       text: text, // 使用者輸入的文字（去除 @ai 後）
-      prompt: isImageCommand ? text : undefined, // image 指令使用的 prompt
+      prompt: prompt, // image 指令使用的 prompt
       image: imagePayload, // 如果使用者傳圖 + @aiimg caption，這裡會帶 base64 image
       timestamp: msg.timestamp, // 訊息的 UNIX 時間戳（秒）
       author: userId, // 發送者 ID
@@ -279,6 +280,10 @@ app.post("/send-message", async (req, res) => {
     // client.getChatById(targetChatId) → 先確認目標 chat 存在
     // chat.sendMessage(outgoingMessage) → 再把訊息送到該 chat，對群組更穩定
     const chat = await client.getChatById(targetChatId);
+    outgoingMessageTracker.remember({
+      to: targetChatId,
+      text: outgoingMessage,
+    });
     await chat.sendMessage(outgoingMessage);
     console.log(`[Sent] To: ${targetChatId} | Message: ${outgoingMessage}`);
     // res.json({...}) → 回傳 HTTP 200（預設）+ JSON 回應

@@ -1,6 +1,6 @@
-﻿[
+[
     {
-        "updatedAt":  "2026-06-01T13:03:23.747Z",
+        "updatedAt":  "2026-06-02T05:33:27.513Z",
         "createdAt":  "2026-05-30T14:13:18.758Z",
         "id":  "GzaVQyP3H3REm6M7",
         "name":  "whatsapp booot",
@@ -28,13 +28,13 @@
                       },
                       {
                           "parameters":  {
-                                             "jsCode":  "     const store = $getWorkflowStaticData(\u0027global\u0027);\n     const body = $input.first().json.body;\n     const key = body.memoryKey;\n     const history = store[key] || [];\n\n     const system = {\n       role: \u0027system\u0027,\n       content: \u0027你是一個 WhatsApp 群組 AI 助手。請根據該使用者在該群組的上下文回答，使用繁體中文，簡潔自然。\u0027\n     };\n\n     if (body.command === \u0027memory\u0027) {\n       return [{\n         json: {\n           ...body,\n           messages: [\n             system,\n             ...history,\n             {\n               role: \u0027user\u0027,\n               content: \u0027請總結你目前記得關於我的資訊。若沒有記憶，請說目前沒有足夠記憶。\u0027\n             }\n           ],\n           existingMemory: history\n         }\n       }];\n     }\n\n     return [{\n       json: {\n         ...body,\n         messages: [\n           system,\n           ...history,\n           {\n             role: \u0027user\u0027,\n             content: body.text\n           }\n         ],\n         existingMemory: history\n       }\n     }];"
+                                             "jsCode":  "const body = $(\"Webhook\").first().json.body;\nconst results = $json.result ?? [];\n\nconst memories = results\n  .filter((item) =\u003e item.payload?.text)\n  .map((item, index) =\u003e {\n    const payload = item.payload;\n    const date = new Date(Number(payload.timestamp ?? 0) * 1000)\n      .toISOString()\n      .slice(0, 10);\n    return `${index + 1}. [${payload.userName ?? payload.userId}, ${date}] ${payload.text}`;\n  });\n\nconst context =\n  memories.length \u003e 0\n    ? `以下是這個 WhatsApp 群組的相關歷史記憶：\\n\\n${memories.join(\"\\n\")}`\n    : \"目前沒有找到足夠相關的群組記憶。\";\n\nconst system = {\n  role: \"system\",\n  content:\n    \"你是一個 WhatsApp 群組 AI 助手。你可以使用群組共同記憶回答問題。如果記憶不足，請明確說「我目前沒有足夠記憶」。不要編造沒有出現在記憶裡的內容。回答請簡潔、自然，使用繁體中文或粵語。\",\n};\n\nreturn [\n  {\n    json: {\n      ...body,\n      messages: [\n        system,\n        {\n          role: \"user\",\n          content: `${context}\\n\\n使用者現在問：\\n${body.text}`,\n        },\n      ],\n    },\n  },\n];"
                                          },
                           "type":  "n8n-nodes-base.code",
                           "typeVersion":  2,
                           "position":  [
-                                           -272,
-                                           -80
+                                           400,
+                                           -240
                                        ],
                           "id":  "4a7197f8-03e0-45a6-8b08-2e1e4643925f",
                           "name":  "prepare memory"
@@ -55,8 +55,8 @@
                           "type":  "n8n-nodes-base.httpRequest",
                           "typeVersion":  4.4,
                           "position":  [
-                                           -48,
-                                           -80
+                                           624,
+                                           -240
                                        ],
                           "id":  "50f5d5d1-9597-4e26-b20a-de325ad7a764",
                           "name":  "Deepseek",
@@ -91,7 +91,7 @@
                           "type":  "n8n-nodes-base.httpRequest",
                           "typeVersion":  4.4,
                           "position":  [
-                                           400,
+                                           1072,
                                            -80
                                        ],
                           "id":  "a4e6a994-522f-45aa-80b9-df181f766804",
@@ -99,13 +99,13 @@
                       },
                       {
                           "parameters":  {
-                                             "jsCode":  "     const store = $getWorkflowStaticData(\u0027global\u0027);\n\n     const input = $(\u0027prepare memory\u0027).first().json;\n     const deepseekOutput = $input.first().json;\n\n     const aiReply = deepseekOutput.choices?.[0]?.message?.content;\n     const limit = input.memoryLimit || 10;\n\n     if (!aiReply) {\n       throw new Error(\u0027DeepSeek did not return choices[0].message.content\u0027);\n     }\n\n     let history = input.existingMemory || [];\n\n     if (input.command !== \u0027memory\u0027) {\n       history.push({ role: \u0027user\u0027, content: input.text });\n       history.push({ role: \u0027assistant\u0027, content: aiReply });\n       history = history.slice(-limit);\n       store[input.memoryKey] = history;\n     }\n\n     return [{\n       json: {\n         to: input.groupId,\n         message: aiReply\n       }\n     }];"
+                                             "jsCode":  "const input = $(\"prepare memory\").first().json;\nconst deepseekOutput = $input.first().json;\nconst aiReply = deepseekOutput.choices?.[0]?.message?.content;\n\nif (!aiReply) {\n  throw new Error(\"DeepSeek did not return choices[0].message.content\");\n}\n\nreturn [\n  {\n    json: {\n      to: input.groupId,\n      message: aiReply,\n    },\n  },\n];"
                                          },
                           "type":  "n8n-nodes-base.code",
                           "typeVersion":  2,
                           "position":  [
-                                           176,
-                                           -80
+                                           848,
+                                           -240
                                        ],
                           "id":  "b7ee89c9-7ada-46c8-a0a7-36c744899a2d",
                           "name":  "save memory"
@@ -128,9 +128,10 @@
                                                                                                                         "rightValue":  "chat",
                                                                                                                         "operator":  {
                                                                                                                                          "type":  "string",
-                                                                                                                                         "operation":  "equals"
+                                                                                                                                         "operation":  "equals",
+                                                                                                                                         "name":  "filter.operator.equals"
                                                                                                                                      },
-                                                                                                                        "id":  "e457a94f-2f26-4314-936a-5b65307b793f"
+                                                                                                                        "id":  "rag-switch-chat"
                                                                                                                     }
                                                                                                                 ],
                                                                                                  "combinator":  "and"
@@ -146,14 +147,83 @@
                                                                                                              },
                                                                                                  "conditions":  [
                                                                                                                     {
-                                                                                                                        "id":  "db283417-04c3-4932-a688-0b3b6aaa732b",
                                                                                                                         "leftValue":  "={{ $json.body.command }}",
                                                                                                                         "rightValue":  "image",
                                                                                                                         "operator":  {
                                                                                                                                          "type":  "string",
                                                                                                                                          "operation":  "equals",
                                                                                                                                          "name":  "filter.operator.equals"
-                                                                                                                                     }
+                                                                                                                                     },
+                                                                                                                        "id":  "rag-switch-image"
+                                                                                                                    }
+                                                                                                                ],
+                                                                                                 "combinator":  "and"
+                                                                                             }
+                                                                          },
+                                                                          {
+                                                                              "conditions":  {
+                                                                                                 "options":  {
+                                                                                                                 "caseSensitive":  true,
+                                                                                                                 "leftValue":  "",
+                                                                                                                 "typeValidation":  "strict",
+                                                                                                                 "version":  3
+                                                                                                             },
+                                                                                                 "conditions":  [
+                                                                                                                    {
+                                                                                                                        "leftValue":  "={{ $json.body.command }}",
+                                                                                                                        "rightValue":  "record",
+                                                                                                                        "operator":  {
+                                                                                                                                         "type":  "string",
+                                                                                                                                         "operation":  "equals",
+                                                                                                                                         "name":  "filter.operator.equals"
+                                                                                                                                     },
+                                                                                                                        "id":  "rag-switch-record"
+                                                                                                                    }
+                                                                                                                ],
+                                                                                                 "combinator":  "and"
+                                                                                             }
+                                                                          },
+                                                                          {
+                                                                              "conditions":  {
+                                                                                                 "options":  {
+                                                                                                                 "caseSensitive":  true,
+                                                                                                                 "leftValue":  "",
+                                                                                                                 "typeValidation":  "strict",
+                                                                                                                 "version":  3
+                                                                                                             },
+                                                                                                 "conditions":  [
+                                                                                                                    {
+                                                                                                                        "leftValue":  "={{ $json.body.command }}",
+                                                                                                                        "rightValue":  "memory_status",
+                                                                                                                        "operator":  {
+                                                                                                                                         "type":  "string",
+                                                                                                                                         "operation":  "equals",
+                                                                                                                                         "name":  "filter.operator.equals"
+                                                                                                                                     },
+                                                                                                                        "id":  "rag-switch-memory-status"
+                                                                                                                    }
+                                                                                                                ],
+                                                                                                 "combinator":  "and"
+                                                                                             }
+                                                                          },
+                                                                          {
+                                                                              "conditions":  {
+                                                                                                 "options":  {
+                                                                                                                 "caseSensitive":  true,
+                                                                                                                 "leftValue":  "",
+                                                                                                                 "typeValidation":  "strict",
+                                                                                                                 "version":  3
+                                                                                                             },
+                                                                                                 "conditions":  [
+                                                                                                                    {
+                                                                                                                        "leftValue":  "={{ $json.body.command }}",
+                                                                                                                        "rightValue":  "forget_me",
+                                                                                                                        "operator":  {
+                                                                                                                                         "type":  "string",
+                                                                                                                                         "operation":  "equals",
+                                                                                                                                         "name":  "filter.operator.equals"
+                                                                                                                                     },
+                                                                                                                        "id":  "rag-switch-forget-me"
                                                                                                                     }
                                                                                                                 ],
                                                                                                  "combinator":  "and"
@@ -346,6 +416,230 @@
                                        ],
                           "id":  "b1c78dd1-7589-4317-a477-794534d94b42",
                           "name":  "edit Gpt image2"
+                      },
+                      {
+                          "parameters":  {
+                                             "method":  "PUT",
+                                             "url":  "http://qdrant:6333/collections/whatsapp_memory",
+                                             "sendBody":  true,
+                                             "specifyBody":  "json",
+                                             "jsonBody":  "={\n  \"vectors\": {\n    \"size\": 1024,\n    \"distance\": \"Cosine\"\n  }\n}",
+                                             "options":  {
+
+                                                         }
+                                         },
+                          "type":  "n8n-nodes-base.httpRequest",
+                          "typeVersion":  4.4,
+                          "position":  [
+                                           -720,
+                                           520
+                                       ],
+                          "id":  "rag-qdrant-init-collection",
+                          "name":  "qdrant init collection"
+                      },
+                      {
+                          "parameters":  {
+                                             "jsCode":  "const body = $json.body;\nconst text = String(body.text ?? \"\").trim();\n\nif (!body.groupId || !body.userId || !body.messageId || text.length \u003c 5) {\n  return [];\n}\n\nconst timestamp = Number(body.timestamp ?? Math.floor(Date.now() / 1000));\nconst expiresAt = timestamp + 180 * 24 * 60 * 60;\n\nreturn [\n  {\n    json: {\n      ...body,\n      text,\n      timestamp,\n      expiresAt,\n    },\n  },\n];"
+                                         },
+                          "type":  "n8n-nodes-base.code",
+                          "typeVersion":  2,
+                          "position":  [
+                                           -272,
+                                           360
+                                       ],
+                          "id":  "rag-prepare-memory-point",
+                          "name":  "prepare memory point"
+                      },
+                      {
+                          "parameters":  {
+                                             "method":  "POST",
+                                             "url":  "https://tokendance.space/gateway/v1/embeddings",
+                                             "sendHeaders":  true,
+                                             "headerParameters":  {
+                                                                      "parameters":  [
+                                                                                         {
+                                                                                             "name":  "Authorization",
+                                                                                             "value":  "Bearer YOUR_OPENAI_API_KEY"
+                                                                                         },
+                                                                                         {
+                                                                                             "name":  "Content-Type",
+                                                                                             "value":  "application/json"
+                                                                                         }
+                                                                                     ]
+                                                                  },
+                                             "sendBody":  true,
+                                             "specifyBody":  "json",
+                                             "jsonBody":  "={\n  \"model\": \"qwen-text-embedding-v4\",\n  \"input\": \"{{ $json.text }}\"\n}",
+                                             "options":  {
+
+                                                         }
+                                         },
+                          "type":  "n8n-nodes-base.httpRequest",
+                          "typeVersion":  4.4,
+                          "position":  [
+                                           -48,
+                                           360
+                                       ],
+                          "id":  "rag-openai-embed-record",
+                          "name":  "qwen embed record"
+                      },
+                      {
+                          "parameters":  {
+                                             "jsCode":  "const original = $(\"prepare memory point\").first().json;\nconst embedding = $json.data?.[0]?.embedding;\n\nif (!Array.isArray(embedding)) {\n  throw new Error(\"Embedding missing at data[0].embedding\");\n}\n\nreturn [\n  {\n    json: {\n      points: [\n        {\n          id: original.messageId,\n          vector: embedding,\n          payload: {\n            messageId: original.messageId,\n            groupId: original.groupId,\n            groupName: original.groupName,\n            userId: original.userId,\n            userName: original.userName ?? original.userId,\n            text: original.text,\n            timestamp: original.timestamp,\n            expiresAt: original.expiresAt,\n            type: \"whatsapp_message\",\n            source: \"whatsapp-bridge\",\n          },\n        },\n      ],\n    },\n  },\n];"
+                                         },
+                          "type":  "n8n-nodes-base.code",
+                          "typeVersion":  2,
+                          "position":  [
+                                           176,
+                                           360
+                                       ],
+                          "id":  "rag-build-qdrant-record-point",
+                          "name":  "build qdrant record point"
+                      },
+                      {
+                          "parameters":  {
+                                             "method":  "PUT",
+                                             "url":  "http://qdrant:6333/collections/whatsapp_memory/points?wait=true",
+                                             "sendBody":  true,
+                                             "specifyBody":  "json",
+                                             "jsonBody":  "={{ JSON.stringify($json) }}",
+                                             "options":  {
+
+                                                         }
+                                         },
+                          "type":  "n8n-nodes-base.httpRequest",
+                          "typeVersion":  4.4,
+                          "position":  [
+                                           400,
+                                           360
+                                       ],
+                          "id":  "rag-qdrant-upsert-memory",
+                          "name":  "qdrant upsert memory"
+                      },
+                      {
+                          "parameters":  {
+                                             "method":  "POST",
+                                             "url":  "https://tokendance.space/gateway/v1/embeddings",
+                                             "sendHeaders":  true,
+                                             "headerParameters":  {
+                                                                      "parameters":  [
+                                                                                         {
+                                                                                             "name":  "Authorization",
+                                                                                             "value":  "Bearer YOUR_OPENAI_API_KEY"
+                                                                                         },
+                                                                                         {
+                                                                                             "name":  "Content-Type",
+                                                                                             "value":  "application/json"
+                                                                                         }
+                                                                                     ]
+                                                                  },
+                                             "sendBody":  true,
+                                             "specifyBody":  "json",
+                                             "jsonBody":  "={\n  \"model\": \"qwen-text-embedding-v4\",\n  \"input\": \"{{ $json.body.text }}\"\n}",
+                                             "options":  {
+
+                                                         }
+                                         },
+                          "type":  "n8n-nodes-base.httpRequest",
+                          "typeVersion":  4.4,
+                          "position":  [
+                                           -272,
+                                           -240
+                                       ],
+                          "id":  "rag-openai-embed-question",
+                          "name":  "qwen embed question"
+                      },
+                      {
+                          "parameters":  {
+                                             "jsCode":  "const body = $(\"Webhook\").first().json.body;\nconst embedding = $json.data?.[0]?.embedding;\n\nif (!Array.isArray(embedding)) {\n  throw new Error(\"Embedding missing at data[0].embedding\");\n}\n\nreturn [\n  {\n    json: {\n      vector: embedding,\n      limit: 8,\n      filter: {\n        must: [\n          {\n            key: \"groupId\",\n            match: {\n              value: body.groupId,\n            },\n          },\n        ],\n      },\n      with_payload: true,\n    },\n  },\n];"
+                                         },
+                          "type":  "n8n-nodes-base.code",
+                          "typeVersion":  2,
+                          "position":  [
+                                           -48,
+                                           -240
+                                       ],
+                          "id":  "rag-build-qdrant-search",
+                          "name":  "build qdrant search"
+                      },
+                      {
+                          "parameters":  {
+                                             "method":  "POST",
+                                             "url":  "http://qdrant:6333/collections/whatsapp_memory/points/search",
+                                             "sendBody":  true,
+                                             "specifyBody":  "json",
+                                             "jsonBody":  "={{ JSON.stringify($json) }}",
+                                             "options":  {
+
+                                                         }
+                                         },
+                          "type":  "n8n-nodes-base.httpRequest",
+                          "typeVersion":  4.4,
+                          "position":  [
+                                           176,
+                                           -240
+                                       ],
+                          "id":  "rag-qdrant-search-memory",
+                          "name":  "qdrant search memory"
+                      },
+                      {
+                          "parameters":  {
+                                             "jsCode":  "const body = $json.body;\n\nreturn [\n  {\n    json: {\n      to: body.groupId,\n      message:\n        \"群組記憶已啟用。\\n目前只會記錄有效文字訊息，保留 180 天。\\n你可以用 @ai forget me 刪除你在此群組的記憶。\",\n    },\n  },\n];"
+                                         },
+                          "type":  "n8n-nodes-base.code",
+                          "typeVersion":  2,
+                          "position":  [
+                                           -272,
+                                           520
+                                       ],
+                          "id":  "rag-prepare-memory-status",
+                          "name":  "prepare memory status"
+                      },
+                      {
+                          "parameters":  {
+                                             "jsCode":  "const body = $json.body;\n\nreturn [\n  {\n    json: {\n      filter: {\n        must: [\n          {\n            key: \"groupId\",\n            match: {\n              value: body.groupId,\n            },\n          },\n          {\n            key: \"userId\",\n            match: {\n              value: body.userId,\n            },\n          },\n        ],\n      },\n      groupId: body.groupId,\n    },\n  },\n];"
+                                         },
+                          "type":  "n8n-nodes-base.code",
+                          "typeVersion":  2,
+                          "position":  [
+                                           -272,
+                                           680
+                                       ],
+                          "id":  "rag-build-forget-me-request",
+                          "name":  "build forget me request"
+                      },
+                      {
+                          "parameters":  {
+                                             "method":  "POST",
+                                             "url":  "http://qdrant:6333/collections/whatsapp_memory/points/delete?wait=true",
+                                             "sendBody":  true,
+                                             "specifyBody":  "json",
+                                             "jsonBody":  "={\n  \"filter\": {{ JSON.stringify($json.filter) }}\n}",
+                                             "options":  {
+
+                                                         }
+                                         },
+                          "type":  "n8n-nodes-base.httpRequest",
+                          "typeVersion":  4.4,
+                          "position":  [
+                                           -48,
+                                           680
+                                       ],
+                          "id":  "rag-qdrant-forget-me",
+                          "name":  "qdrant forget me"
+                      },
+                      {
+                          "parameters":  {
+                                             "jsCode":  "const body = $(\"Webhook\").first().json.body;\n\nreturn [\n  {\n    json: {\n      to: body.groupId,\n      message: \"已刪除你在這個群組的 AI 記憶。\",\n    },\n  },\n];"
+                                         },
+                          "type":  "n8n-nodes-base.code",
+                          "typeVersion":  2,
+                          "position":  [
+                                           176,
+                                           680
+                                       ],
+                          "id":  "rag-prepare-forget-me-response",
+                          "name":  "prepare forget me response"
                       }
                   ],
         "connections":  {
@@ -360,6 +654,78 @@
                                                          ]
                                                      ]
                                         },
+                            "Switch":  {
+                                           "main":  [
+                                                        [
+                                                            {
+                                                                               "node":  "qwen embed question",
+                                                                "type":  "main",
+                                                                "index":  0
+                                                            }
+                                                        ],
+                                                        [
+                                                            {
+                                                                "node":  "If",
+                                                                "type":  "main",
+                                                                "index":  0
+                                                            }
+                                                        ],
+                                                        [
+                                                            {
+                                                                "node":  "prepare memory point",
+                                                                "type":  "main",
+                                                                "index":  0
+                                                            }
+                                                        ],
+                                                        [
+                                                            {
+                                                                "node":  "prepare memory status",
+                                                                "type":  "main",
+                                                                "index":  0
+                                                            }
+                                                        ],
+                                                        [
+                                                            {
+                                                                "node":  "build forget me request",
+                                                                "type":  "main",
+                                                                "index":  0
+                                                            }
+                                                        ]
+                                                    ]
+                                       },
+                            "qwen embed question":  {
+                                                          "main":  [
+                                                                       [
+                                                                           {
+                                                                               "node":  "build qdrant search",
+                                                                               "type":  "main",
+                                                                               "index":  0
+                                                                           }
+                                                                       ]
+                                                                   ]
+                                                      },
+                            "build qdrant search":  {
+                                                        "main":  [
+                                                                     [
+                                                                         {
+                                                                             "node":  "qdrant search memory",
+                                                                             "type":  "main",
+                                                                             "index":  0
+                                                                         }
+                                                                     ]
+                                                                 ]
+                                                    },
+                            "qdrant search memory":  {
+                                                         "main":  [
+                                                                      [
+                                                                          {
+                                                                              "node":  "prepare memory",
+                                                                              "type":  "main",
+                                                                              "index":  0
+                                                                          }
+                                                                      ]
+                                                                  ]
+                                                     },
                             "prepare memory":  {
                                                    "main":  [
                                                                 [
@@ -393,35 +759,83 @@
                                                              ]
                                                          ]
                                             },
-                            "Switch":  {
-                                           "main":  [
-                                                        [
-                                                            {
-                                                                "node":  "prepare memory",
-                                                                "type":  "main",
-                                                                "index":  0
-                                                            }
-                                                        ],
-                                                        [
-                                                            {
-                                                                "node":  "If",
-                                                                "type":  "main",
-                                                                "index":  0
-                                                            }
-                                                        ]
-                                                    ]
-                                       },
-                            "Gpt-image2":  {
-                                               "main":  [
-                                                            [
-                                                                {
-                                                                    "node":  "return image",
-                                                                    "type":  "main",
-                                                                    "index":  0
-                                                                }
-                                                            ]
-                                                        ]
-                                           },
+                            "prepare memory point":  {
+                                                         "main":  [
+                                                                      [
+                                                                          {
+                                                                                 "node":  "qwen embed record",
+                                                                              "type":  "main",
+                                                                              "index":  0
+                                                                          }
+                                                                      ]
+                                                                  ]
+                                                     },
+                            "qwen embed record":  {
+                                                        "main":  [
+                                                                     [
+                                                                         {
+                                                                             "node":  "build qdrant record point",
+                                                                             "type":  "main",
+                                                                             "index":  0
+                                                                         }
+                                                                     ]
+                                                                 ]
+                                                    },
+                            "build qdrant record point":  {
+                                                              "main":  [
+                                                                           [
+                                                                               {
+                                                                                   "node":  "qdrant upsert memory",
+                                                                                   "type":  "main",
+                                                                                   "index":  0
+                                                                               }
+                                                                           ]
+                                                                       ]
+                                                          },
+                            "prepare memory status":  {
+                                                          "main":  [
+                                                                       [
+                                                                           {
+                                                                               "node":  "return message",
+                                                                               "type":  "main",
+                                                                               "index":  0
+                                                                           }
+                                                                       ]
+                                                                   ]
+                                                      },
+                            "build forget me request":  {
+                                                            "main":  [
+                                                                         [
+                                                                             {
+                                                                                 "node":  "qdrant forget me",
+                                                                                 "type":  "main",
+                                                                                 "index":  0
+                                                                             }
+                                                                         ]
+                                                                     ]
+                                                        },
+                            "qdrant forget me":  {
+                                                     "main":  [
+                                                                  [
+                                                                      {
+                                                                          "node":  "prepare forget me response",
+                                                                          "type":  "main",
+                                                                          "index":  0
+                                                                      }
+                                                                  ]
+                                                              ]
+                                                 },
+                            "prepare forget me response":  {
+                                                               "main":  [
+                                                                            [
+                                                                                {
+                                                                                    "node":  "return message",
+                                                                                    "type":  "main",
+                                                                                    "index":  0
+                                                                                }
+                                                                            ]
+                                                                        ]
+                                                           },
                             "If":  {
                                        "main":  [
                                                     [
@@ -461,7 +875,18 @@
                                                                      }
                                                                  ]
                                                              ]
-                                                }
+                                                },
+                            "Gpt-image2":  {
+                                               "main":  [
+                                                            [
+                                                                {
+                                                                    "node":  "return image",
+                                                                    "type":  "main",
+                                                                    "index":  0
+                                                                }
+                                                            ]
+                                                        ]
+                                           }
                         },
         "settings":  {
                          "executionOrder":  "v1",
@@ -532,5 +957,99 @@
                                 "name":  "Version adc0d747",
                                 "description":  ""
                             }
+    },
+    {
+        "updatedAt":  "2026-06-02T05:33:27.514Z",
+        "createdAt":  "2026-06-02T05:33:27.515Z",
+        "id":  "rag-memory-cleanup",
+        "name":  "whatsapp memory cleanup",
+        "description":  null,
+        "active":  false,
+        "isArchived":  false,
+        "nodes":  [
+                      {
+                          "parameters":  {
+                                             "rule":  {
+                                                          "interval":  [
+                                                                           {
+                                                                               "field":  "days",
+                                                                               "daysInterval":  1
+                                                                           }
+                                                                       ]
+                                                      }
+                                         },
+                          "type":  "n8n-nodes-base.scheduleTrigger",
+                          "typeVersion":  1.2,
+                          "position":  [
+                                           -480,
+                                           0
+                                       ],
+                          "id":  "rag-schedule-cleanup",
+                          "name":  "Schedule Trigger"
+                      },
+                      {
+                          "parameters":  {
+                                             "jsCode":  "const now = Math.floor(Date.now() / 1000);\n\nreturn [\n  {\n    json: {\n      filter: {\n        must: [\n          {\n            key: \"expiresAt\",\n            range: {\n              lt: now,\n            },\n          },\n        ],\n      },\n    },\n  },\n];"
+                                         },
+                          "type":  "n8n-nodes-base.code",
+                          "typeVersion":  2,
+                          "position":  [
+                                           -256,
+                                           0
+                                       ],
+                          "id":  "rag-build-expired-memory-filter",
+                          "name":  "build expired memory filter"
+                      },
+                      {
+                          "parameters":  {
+                                             "method":  "POST",
+                                             "url":  "http://qdrant:6333/collections/whatsapp_memory/points/delete?wait=true",
+                                             "sendBody":  true,
+                                             "specifyBody":  "json",
+                                             "jsonBody":  "={\n  \"filter\": {{ JSON.stringify($json.filter) }}\n}",
+                                             "options":  {
+
+                                                         }
+                                         },
+                          "type":  "n8n-nodes-base.httpRequest",
+                          "typeVersion":  4.4,
+                          "position":  [
+                                           -32,
+                                           0
+                                       ],
+                          "id":  "rag-qdrant-delete-expired-memories",
+                          "name":  "qdrant delete expired memories"
+                      }
+                  ],
+        "connections":  {
+                            "Schedule Trigger":  {
+                                                     "main":  [
+                                                                  [
+                                                                      {
+                                                                          "node":  "build expired memory filter",
+                                                                          "type":  "main",
+                                                                          "index":  0
+                                                                      }
+                                                                  ]
+                                                              ]
+                                                 },
+                            "build expired memory filter":  {
+                                                                "main":  [
+                                                                             [
+                                                                                 {
+                                                                                     "node":  "qdrant delete expired memories",
+                                                                                     "type":  "main",
+                                                                                     "index":  0
+                                                                                 }
+                                                                             ]
+                                                                         ]
+                                                            }
+                        },
+        "settings":  {
+                         "executionOrder":  "v1"
+                     },
+        "tags":  [
+
+                 ]
     }
 ]
