@@ -5,6 +5,14 @@ n8n_data/
 whatsapp_session/
 .worktrees/
 *.log
+*.md
+*.html
+*.txt
+docs/superpowers/
 n8n/workflows/*.raw.json
 n8n/workflows/rag-import-safe.json
+n8n/workflows/*-export.json
+n8n/workflows/*-verify.json
+n8n/workflows/*.before-*.json
+n8n/workflows/workflows.before-*.json
 n8n/backups/

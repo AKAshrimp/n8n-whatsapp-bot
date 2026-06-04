@@ -40,7 +40,7 @@ test("uses quoted image media when command is a reply to an image", async () => 
   assert.equal(result.imageSource, "quoted");
   assert.deepEqual(result.imagePayload, {
     mimetype: "image/jpeg",
-    filename: "input-image",
+    filename: "input-image.jpg",
     data: "quoted-base64",
   });
 });
@@ -61,7 +61,11 @@ test("falls back to generate mode when no image media is available", async () =>
 
 const {
   classifyIncomingText,
+  createAiOutboxRecord,
+  createHistoryImportDecision,
   createOutgoingMessageTracker,
+  createTextHash,
+  formatGroupList,
   isRecordableText,
   createStableMessageId,
 } = require("./message-utils");
@@ -241,4 +245,110 @@ test("expires old sent bot messages", () => {
     tracker.isKnownOutgoing({ from: "group-1", text: "AI reply", now: 2001 }),
     false
   );
+});
+
+test("creates stable text hash for normalized text", () => {
+  assert.equal(createTextHash("AI reply"), createTextHash(" AI   reply "));
+  assert.notEqual(createTextHash("AI reply"), createTextHash("manual reply"));
+});
+
+test("creates ai outbox record metadata without changing visible text", () => {
+  const record = createAiOutboxRecord({
+    groupId: "group-1",
+    senderId: "bot@c.us",
+    text: "你8月要去旅行啊",
+    sentAt: 1780222830,
+  });
+
+  assert.equal(record.type, "ai_reply");
+  assert.equal(record.source, "whatsapp-bridge");
+  assert.equal(record.groupId, "group-1");
+  assert.equal(record.senderId, "bot@c.us");
+  assert.equal(record.textLength, 8);
+  assert.equal(record.sentAt, 1780222830);
+  assert.equal(record.textHash, createTextHash("你8月要去旅行啊"));
+  assert.equal(Object.hasOwn(record, "text"), false);
+});
+
+test("history import decision skips known ai outbox hash", () => {
+  const decision = createHistoryImportDecision(
+    {
+      userId: "bot@c.us",
+      text: "AI reply that should be filtered",
+      timestamp: 1780222830,
+    },
+    {
+      aiOutboxHashes: new Set([createTextHash("AI reply that should be filtered")]),
+      botUserId: "bot@c.us",
+      now: 1780222830,
+    }
+  );
+
+  assert.equal(decision.import, false);
+  assert.equal(decision.reason, "known_ai_reply");
+});
+
+test("history import decision skips recent long bot-account messages", () => {
+  const decision = createHistoryImportDecision(
+    {
+      userId: "bot@c.us",
+      text: "這是一段超過十五個字而且最近五天內的文字",
+      timestamp: 1780222830,
+    },
+    {
+      aiOutboxHashes: new Set(),
+      botUserId: "bot@c.us",
+      now: 1780222830 + 60,
+    }
+  );
+
+  assert.equal(decision.import, false);
+  assert.equal(decision.reason, "recent_long_bot_account_message");
+});
+
+test("history import decision keeps old bot-account messages", () => {
+  const decision = createHistoryImportDecision(
+    {
+      userId: "bot@c.us",
+      text: "這是一段很久以前的真人訊息，所以可以保留",
+      timestamp: 1780222830 - 10 * 24 * 60 * 60,
+    },
+    {
+      aiOutboxHashes: new Set(),
+      botUserId: "bot@c.us",
+      now: 1780222830,
+    }
+  );
+
+  assert.equal(decision.import, true);
+  assert.equal(decision.reason, "import");
+});
+
+test("formatGroupList returns safe group names and ids only", () => {
+  const groups = formatGroupList([
+    {
+      isGroup: true,
+      name: " 珍•Marathon Part-time•珠 ",
+      id: { _serialized: "123-456@g.us" },
+      participants: [{}, {}],
+    },
+    {
+      isGroup: false,
+      name: "Private chat",
+      id: { _serialized: "123@c.us" },
+    },
+    {
+      isGroup: true,
+      name: "",
+      id: { _serialized: "" },
+    },
+  ]);
+
+  assert.deepEqual(groups, [
+    {
+      id: "123-456@g.us",
+      name: "珍•Marathon Part-time•珠",
+      participantsCount: 2,
+    },
+  ]);
 });

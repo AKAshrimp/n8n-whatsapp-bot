@@ -4,7 +4,11 @@
   "description": "WhatsApp AI group assistant with n8n workflow",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "test": "node --test message-utils.test.js scripts/*.test.js",
+    "analyze:history": "node scripts/history-analysis.js",
+    "seed:history": "node scripts/seed-whatsapp-history.js",
+    "seed:profiles": "node scripts/summarize-member-profiles.js"
   },
   "dependencies": {
     "whatsapp-web.js": "^1.23.0",

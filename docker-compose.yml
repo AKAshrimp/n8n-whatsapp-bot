@@ -11,8 +11,11 @@ services:
       - N8N_BASIC_AUTH_USER=admin
       - N8N_BASIC_AUTH_PASSWORD=admin123
       - GENERIC_TIMEZONE=Asia/Taipei
+      - NODE_FUNCTION_ALLOW_BUILTIN=fs
+      - BRAVE_SEARCH_API_KEY_FILE=/home/node/.n8n/bravesearch-key
     volumes:
       - n8n_data:/home/node/.n8n
+      - ./n8n/backups/bravesearch-key:/home/node/.n8n/bravesearch-key:ro
     restart: unless-stopped
     depends_on:
       - qdrant
@@ -30,6 +33,7 @@ services:
       - N8N_WEBHOOK_URL=http://n8n:5678/webhook/whatsapp-trigger
       - TARGET_GROUP_NAMES=Private Wutsapp Group,珍•Marathon Part-time•珠
       - MEMORY_LIMIT=10
+      - AI_OUTBOX_LOG_PATH=/app/session/ai-outbox.jsonl
     volumes:
       - whatsapp_session:/app/session
     restart: unless-stopped

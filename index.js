@@ -19,13 +19,17 @@
 // require("套件名稱") → 載入外部套件，回傳該套件的內容
 // const { Client, LocalAuth, MessageMedia } → 解構賦值：從 whatsapp-web.js 套件中取出需要的 class
 const { Client, LocalAuth, MessageMedia } = require("whatsapp-web.js"); // WhatsApp Web 的 Node.js Client
+const fs = require("fs"); // 檔案系統，用來記錄 AI outbox metadata
+const path = require("path"); // 路徑工具，用來建立 outbox log 路徑
 const qrcode = require("qrcode-terminal"); // 在 terminal 顯示 QR Code
 const express = require("express"); // HTTP Server framework，用來接收 n8n 回傳的 AI 回覆
 const axios = require("axios"); // HTTP Client library，用來發送 Webhook 到 n8n
 const {
   classifyIncomingText,
+  createAiOutboxRecord,
   createOutgoingMessageTracker,
   createStableMessageId,
+  formatGroupList,
   getImagePayloadFromMessage,
   isRecordableText,
 } = require("./message-utils");
@@ -53,6 +57,8 @@ const TARGET_GROUP_NAMES = (
 const MEMORY_LIMIT = Number(process.env.MEMORY_LIMIT || 10);
 // 每個 group + user 最多保留幾筆 memory
 const outgoingMessageTracker = createOutgoingMessageTracker();
+const AI_OUTBOX_LOG_PATH =
+  process.env.AI_OUTBOX_LOG_PATH || path.join("n8n", "backups", "ai-outbox.jsonl");
 
 // normalizeGroupName(name) → 標準化 group 名稱，移除半形/全形括號後再比對
 function normalizeGroupName(name) {
@@ -74,6 +80,15 @@ function getMessageUserId(msg) {
     (msg.fromMe ? client.info?.wid?._serialized : msg.from) ||
     "unknown-user"
   );
+}
+
+function getLoggedInUserId() {
+  return client.info?.wid?._serialized || "";
+}
+
+function appendJsonLine(filePath, value) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.appendFileSync(filePath, `${JSON.stringify(value)}\n`, "utf8");
 }
 
 // ==========================================
@@ -190,6 +205,14 @@ client.on("message_create", async (msg) => {
     `[Received] Group: ${chat.name} (${groupId}) | User: ${userId} | Command: ${command} | ImageMode: ${imageMode} | ImageSource: ${imageSource || "none"} | Text: ${text}`
   );
 
+  if (isImageCommand && imagePayload) {
+    console.log("[Image Payload]", {
+      source: imageSource,
+      mimetype: imagePayload.mimetype,
+      filename: imagePayload.filename,
+      base64Length: String(imagePayload.data || "").length,
+    });
+  }
   // try/catch → 錯誤處理機制
   // try 區塊：放「可能出錯」的程式碼
   // catch 區塊：如果 try 裡面出錯，會跳到這裡執行，err 參數包含錯誤資訊
@@ -285,6 +308,14 @@ app.post("/send-message", async (req, res) => {
       text: outgoingMessage,
     });
     await chat.sendMessage(outgoingMessage);
+    appendJsonLine(
+      AI_OUTBOX_LOG_PATH,
+      createAiOutboxRecord({
+        groupId: targetChatId,
+        senderId: getLoggedInUserId(),
+        text: outgoingMessage,
+      })
+    );
     console.log(`[Sent] To: ${targetChatId} | Message: ${outgoingMessage}`);
     // res.json({...}) → 回傳 HTTP 200（預設）+ JSON 回應
     res.json({ success: true });
@@ -378,7 +409,31 @@ app.get("/health", (_req, res) => {
   // client.info → 如果 WhatsApp Client 已連線，info 會包含帳號資訊（truthy）
   //               如果還沒連線，info 是 undefined（falsy）
   // 三元運算子：condition ? 值A : 值B → 條件為 true 回傳值A，否則回傳值B
-  res.json({ status: "ok", whatsapp: client.info ? "connected" : "pending" });
+  res.json({
+    status: "ok",
+    whatsapp: client.info ? "connected" : "pending",
+    userId: getLoggedInUserId() || undefined,
+  });
+});
+
+app.get("/groups", async (_req, res) => {
+  if (process.env.ENABLE_GROUPS_ENDPOINT !== "true") {
+    return res.status(404).json({ error: "Not found" });
+  }
+
+  if (!client.info) {
+    return res.status(503).json({ error: "WhatsApp Client is not ready." });
+  }
+
+  try {
+    const chats = await client.getChats();
+    res.json({ groups: formatGroupList(chats) });
+  } catch (err) {
+    res.status(500).json({
+      error: "Failed to list groups.",
+      detail: err?.message || String(err),
+    });
+  }
 });
 
 // ==========================================
