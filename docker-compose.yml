@@ -4,6 +4,8 @@ services:
   n8n:
     image: n8nio/n8n:latest
     container_name: n8n
+    env_file:
+      - .env
     ports:
       - "5678:5678"
     environment:
@@ -12,6 +14,7 @@ services:
       - N8N_BASIC_AUTH_PASSWORD=admin123
       - GENERIC_TIMEZONE=Asia/Taipei
       - NODE_FUNCTION_ALLOW_BUILTIN=fs
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
       - BRAVE_SEARCH_API_KEY_FILE=/home/node/.n8n/bravesearch-key
     volumes:
       - n8n_data:/home/node/.n8n

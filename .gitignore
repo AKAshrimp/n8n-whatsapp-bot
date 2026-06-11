@@ -4,6 +4,7 @@ session/
 n8n_data/
 whatsapp_session/
 .worktrees/
+explanation-docs/
 *.log
 *.md
 *.html

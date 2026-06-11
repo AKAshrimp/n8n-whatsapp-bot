@@ -5,6 +5,7 @@ const {
   buildMemberPersonaPoint,
   buildMemberPersonaText,
   normalizePersonaProfile,
+  parseMemberPersonaMarkdown,
 } = require("./import-member-personas");
 
 test("normalizePersonaProfile keeps qwen persona report fields", () => {
@@ -32,6 +33,51 @@ test("normalizePersonaProfile keeps qwen persona report fields", () => {
     classicLines: ["今晚玩唔玩。。。"],
     replyMethod: "快速明確回覆，輕鬆接梗",
     uncertainty: "只基於群聊文字",
+  });
+});
+
+test("parseMemberPersonaMarkdown converts fused markdown sections to persona profiles", () => {
+  const profiles = parseMemberPersonaMarkdown(`# Marathon Member Persona Fused Preview
+
+## Riley
+
+- 訊息數：557
+- 一句話人設：群聊中的多面手
+
+### 人物分析
+活躍、友好、直率
+
+### 群友眼中的画像
+隨時準備伸出援手的樂天派
+
+### 講話習慣/口癖
+- 簡短直接
+- 鍾意用emoji
+
+### 常見互動對象
+- Vincy：邀請打機
+
+### 經典語句 / 模仿參考短句
+- 今晚玩唔玩。。。
+- 召喚Vincy
+
+### 回覆方法
+快速明確回覆，輕鬆接梗
+模仿時只取此人的節奏、語氣、常用短句作參考；除非使用者明確要求原句，否則不要逐字照抄。
+`);
+
+  assert.equal(profiles.length, 1);
+  assert.deepEqual(profiles[0], {
+    userName: "Riley",
+    messageCount: 557,
+    persona: "群聊中的多面手",
+    personalityAnalysis: "活躍、友好、直率",
+    portrait: "隨時準備伸出援手的樂天派",
+    speakingHabits: ["簡短直接", "鍾意用emoji"],
+    commonInteractionTargets: [{ target: "Vincy", pattern: "邀請打機" }],
+    classicLines: ["今晚玩唔玩。。。", "召喚Vincy"],
+    replyMethod: "快速明確回覆，輕鬆接梗 模仿時只取此人的節奏、語氣、常用短句作參考；除非使用者明確要求原句，否則不要逐字照抄。",
+    uncertainty: "只基於群聊文字與生成画像",
   });
 });
 

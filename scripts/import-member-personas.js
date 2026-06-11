@@ -40,6 +40,57 @@ function normalizeInteractionTargets(value) {
     .filter((item) => item.target || item.pattern);
 }
 
+function parseBullets(value) {
+  return String(value || "")
+    .split(/\r?\n/)
+    .map((line) => line.match(/^-\s+(.*)$/)?.[1]?.trim())
+    .filter(Boolean);
+}
+
+function sectionBody(block, heading) {
+  const escaped = heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = block.match(new RegExp(`^### ${escaped}\\s*\\r?\\n([\\s\\S]*?)(?=^### |^## |(?![\\s\\S]))`, "m"));
+  return match ? match[1].trim() : "";
+}
+
+function parseInteractionBullet(value) {
+  const text = normalizeText(value);
+  const separatorIndex = text.search(/[：:]/);
+  if (separatorIndex === -1) return { target: text, pattern: "" };
+  return {
+    target: normalizeText(text.slice(0, separatorIndex)),
+    pattern: normalizeText(text.slice(separatorIndex + 1)),
+  };
+}
+
+function parseMemberPersonaMarkdown(markdown) {
+  return String(markdown || "")
+    .replace(/^\uFEFF/, "")
+    .split(/(?=^## )/m)
+    .filter((block) => block.startsWith("## "))
+    .map((block) => {
+      const userName = normalizeText(block.match(/^##\s+(.+)$/m)?.[1]);
+      const messageCount = Number(block.match(/^- 訊息數：\s*(\d+)/m)?.[1] || 0);
+      const persona = normalizeText(block.match(/^- 一句話人設：\s*(.+)$/m)?.[1]);
+      const speakingHabits = parseBullets(sectionBody(block, "講話習慣/口癖"));
+      const commonInteractionTargets = parseBullets(sectionBody(block, "常見互動對象")).map(parseInteractionBullet);
+      const classicLines = parseBullets(sectionBody(block, "經典語句 / 模仿參考短句"));
+
+      return normalizePersonaProfile({
+        userName,
+        messageCount,
+        persona,
+        personalityAnalysis: sectionBody(block, "人物分析"),
+        portrait: sectionBody(block, "群友眼中的画像"),
+        speakingHabits,
+        commonInteractionTargets,
+        classicLines,
+        replyMethod: sectionBody(block, "回覆方法"),
+        uncertainty: "只基於群聊文字與生成画像",
+      });
+    });
+}
+
 function normalizePersonaProfile(raw) {
   const userName = normalizeText(raw?.userName);
   if (!userName) throw new Error("Persona profile requires userName");
@@ -178,8 +229,14 @@ async function main() {
     process.exit(1);
   }
 
-  const raw = JSON.parse(fs.readFileSync(reportPath, "utf8"));
-  if (!Array.isArray(raw)) throw new Error("Persona report must be a JSON array");
+  const reportText = fs.readFileSync(reportPath, "utf8");
+  let raw;
+  if (/\.md$/i.test(reportPath)) {
+    raw = parseMemberPersonaMarkdown(reportText);
+  } else {
+    raw = JSON.parse(reportText);
+  }
+  if (!Array.isArray(raw)) throw new Error("Persona report must be a JSON array or markdown persona report");
 
   const profiles = raw.map(normalizePersonaProfile);
   const texts = profiles.map(buildMemberPersonaText);
@@ -223,4 +280,5 @@ module.exports = {
   buildMemberPersonaPoint,
   buildMemberPersonaText,
   normalizePersonaProfile,
+  parseMemberPersonaMarkdown,
 };

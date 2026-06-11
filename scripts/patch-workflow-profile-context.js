@@ -26,6 +26,38 @@ function removeNode(workflow, name) {
   }
 }
 
+function removeSwitchRule(workflow, switchName, predicate) {
+  const switchNode = maybeFindNode(workflow, switchName);
+  const values = switchNode?.parameters?.rules?.values;
+  const outputs = workflow.connections?.[switchName]?.main;
+  if (!Array.isArray(values)) return;
+
+  const keptValues = [];
+  const keptOutputs = [];
+  values.forEach((value, index) => {
+    if (predicate(value)) return;
+    keptValues.push(value);
+    if (Array.isArray(outputs)) keptOutputs.push(outputs[index] || []);
+  });
+
+  switchNode.parameters.rules.values = keptValues;
+  if (Array.isArray(outputs)) workflow.connections[switchName].main = keptOutputs;
+}
+
+function buildMemoryStatusCode() {
+  return String.raw`const body = $json.body;
+
+return [
+  {
+    json: {
+      to: body.groupId,
+      message:
+        "群組記憶已啟用。\n目前只會記錄有效文字訊息，保留 180 天。",
+    },
+  },
+];`;
+}
+
 function connectOnly(workflow, from, outputIndex, to) {
   workflow.connections[from] = workflow.connections[from] || { main: [] };
   workflow.connections[from].main = workflow.connections[from].main || [];
@@ -54,14 +86,6 @@ return [
               value: body.groupId,
             },
           },
-        ],
-        should: [
-          {
-            key: "type",
-            match: {
-              value: "group_profile",
-            },
-          },
           {
             key: "type",
             match: {
@@ -75,13 +99,57 @@ return [
 ];`;
 }
 
+function buildRecentReplyContextScrollRequestCode() {
+  return String.raw`const body = $("Webhook").first().json.body;
+const RECENT_REPLY_CONTEXT_WINDOW_SECONDS = 5 * 60;
+const RECENT_REPLY_CONTEXT_LIMIT = 80;
+const nowSeconds = Number(body.timestamp || Math.floor(Date.now() / 1000));
+const sinceSeconds = nowSeconds - RECENT_REPLY_CONTEXT_WINDOW_SECONDS;
+
+return [
+  {
+    json: {
+      limit: RECENT_REPLY_CONTEXT_LIMIT,
+      with_payload: true,
+      with_vector: false,
+      filter: {
+        must: [
+          {
+            key: "groupId",
+            match: {
+              value: body.groupId,
+            },
+          },
+          {
+            key: "type",
+            match: {
+              value: "whatsapp_message",
+            },
+          },
+          {
+            key: "timestamp",
+            range: {
+              gte: sinceSeconds,
+              lte: nowSeconds,
+            },
+          },
+        ],
+      },
+    },
+  },
+];`;
+}
+
 function buildPrepareMemoryCode() {
   return String.raw`const body = $("Webhook").first().json.body;
 const semanticResults = $("qdrant search memory").first().json.result ?? [];
-const profilePoints = $json.result?.points ?? [];
+const profilePoints = $("qdrant scroll profiles").first().json.result?.points ?? [];
+const recentReplyContextPoints = $("qdrant scroll recent reply context").first().json.result?.points ?? [];
 const staticData = $getWorkflowStaticData("global");
 const MAX_SHORT_TERM_AI_TURNS = 6;
 const SHORT_TERM_AI_TURN_TTL_MS = 6 * 60 * 60 * 1000;
+const FAST_RESPONSE_MODEL = "deepseek-v4-flash";
+const STRONG_RESPONSE_MODEL = "deepseek-v4-pro";
 const shortTermKey = [body.groupId, body.userId].filter(Boolean).join(":");
 const aiTurnBuffer = staticData.aiTurnBuffer ?? {};
 staticData.aiTurnBuffer = aiTurnBuffer;
@@ -99,7 +167,7 @@ const groupPersonas = {
     language:
       "預設使用繁體中文和粵語口語。如果使用者明顯用英文、普通話或其他語言提問，就跟隨使用者語言回答。",
     length:
-      "回答長度按問題複雜度決定。簡單問題短答；需要推理、整理記憶或解釋時可以詳細，但不要廢話。",
+      "閒聊、打招呼、吐槽、簡單反應時，回覆必須控制在 20 字以內，像 WhatsApp 群友一句話回覆，不要解釋。只有當使用者明確要求詳細、問教學/分析/整理/建議/比較，或需要多步推理時，才可以回覆長一點；長答也要先講重點，避免廢話。",
     memoryRule:
       "只有當使用者問群內歷史、成員私事、過去聊天記錄、某人之前講過什麼、群內曾經發生什麼，而相關記憶不足時，才需要先說目前沒有足夠記憶。一般知識、旅遊建議、笑話、寫作、翻譯、腦震盪問題，不需要群組記憶也要直接用大模型常識回答。",
     safety:
@@ -117,11 +185,6 @@ function formatPoint(item, index) {
   const type = payload.type === "ai_question" ? "AI question" : payload.type || "message";
   return String(index + 1) + ". [" + type + ", " + (payload.userName ?? payload.userId) + ", " + date + "] " + payload.text;
 }
-
-const groupProfileMemories = profilePoints
-  .filter((item) => item.payload?.type === "group_profile")
-  .filter((item) => item.payload?.text)
-  .map((item) => item.payload.text);
 
 const memberProfileMemories = profilePoints
   .filter((item) => item.payload?.type === "member_profile")
@@ -193,6 +256,34 @@ function isPrivacySafetyQuestion(text) {
   return /(洩漏|泄漏|外洩|外泄|私隱|隐私|privacy|資料|资料|data|記錄我|记录我|偷看|公開|公开|外傳|外传|安全|security|credential|api key)/i.test(String(text || ""));
 }
 
+function isReplyAssistRequest(text) {
+  return /(扮我覆|扮我回|我要點覆|我要点复|我要(?:怎麼|怎么|點|点)(?:回|覆|复)|(?:怎麼|怎么)回(?:覆|复)?|幫我回|帮我回|幫我覆|帮我复|幫我諗點回|帮我想怎么回|這句(?:怎麼|怎么)回|这句(?:怎么|怎麼)回|how.*reply|what.*reply)/i.test(String(text || ""));
+}
+
+function needsStrongResponseModel(text) {
+  return /(詳細|详细|分析|整理|總結|总结|比較|比较|推理|原因|點解|为什么|為什麼|深度|深入|歸納|归纳|review|analyze|summarize|compare|reasoning)/i.test(String(text || ""));
+}
+
+function selectOwnMemberProfileForReplyAssist(profiles, inputBody) {
+  const candidates = [
+    inputBody.userId,
+    inputBody.author,
+    inputBody.from,
+    inputBody.fromMe,
+  ]
+    .map(normalizeForMatch)
+    .filter(Boolean);
+
+  return profiles.find((profile) => {
+    const tokens = [
+      profile.userId,
+      profile.userName,
+      String(profile.text || "").split("\n")[0],
+    ].map(normalizeForMatch);
+    return tokens.some((token) => token && candidates.some((candidate) => candidate.includes(token) || token.includes(candidate)));
+  }) || null;
+}
+
 function selectMemberProfilesForQuestion(profiles, question) {
   if (!isImitationRequest(question)) {
     return {
@@ -224,12 +315,23 @@ function selectMemberProfilesForQuestion(profiles, question) {
   };
 }
 
+const isReplyAssist = isReplyAssistRequest(body.text);
+const replyAssistTargetProfile = isReplyAssist
+  ? selectOwnMemberProfileForReplyAssist(memberProfileMemories, body)
+  : null;
 const memberProfileSelection = selectMemberProfilesForQuestion(memberProfileMemories, body.text);
-const selectedMemberProfileMemories = memberProfileSelection.selectedProfiles.map((profile) => profile.text);
+const selectedMemberProfileMemories = isReplyAssist && replyAssistTargetProfile
+  ? [replyAssistTargetProfile.text]
+  : memberProfileSelection.selectedProfiles.map((profile) => profile.text);
 const exactQuoteRequested = isExactQuoteRequest(body.text);
 const groupHistoryRequested = isGroupHistoryRequest(body.text);
 const privacySafetyQuestion = isPrivacySafetyQuestion(body.text);
 const shouldExposeRawHistory = !privacySafetyQuestion && (exactQuoteRequested || groupHistoryRequested);
+const responseModel =
+  isReplyAssist || needsStrongResponseModel(body.text) || groupHistoryRequested || exactQuoteRequested
+    ? STRONG_RESPONSE_MODEL
+    : FAST_RESPONSE_MODEL;
+const responseMode = isReplyAssist ? "reply_assist" : "chat";
 
 const memories = shouldExposeRawHistory
   ? semanticResults
@@ -237,14 +339,9 @@ const memories = shouldExposeRawHistory
       .map(formatPoint)
   : [];
 
-const groupProfileContext =
-  groupProfileMemories.length > 0
-    ? "以下是群組整體画像/統一回覆風格。它是主要風格依據：\n\n" + groupProfileMemories.join("\n")
-    : "目前沒有找到群組整體画像。";
-
 const memberProfileContext =
   selectedMemberProfileMemories.length > 0
-    ? "以下是成員画像。預設只能用來理解成員背景、常見梗、人設和互動方式；不要把其中的經典語句、口癖或原句當成可照抄的 phrase bank。只有使用者明確要求模仿某位成員時，才可以用對應 member_profile 輕量模仿語氣，但仍要用自己的話自然改寫。\n\n" + memberProfileSelection.selectionNote + (memberProfileSelection.matchedTargetName ? "\n被模仿目標：" + memberProfileSelection.matchedTargetName : "") + "\n\n" + selectedMemberProfileMemories.join("\n")
+    ? "以下是成員画像。預設用來理解成員背景、常見梗、人設和互動方式；閒聊、吐槽或模仿時可以合理使用少量口頭禪或常見句式增加群味，但不要把舊訊息整句照抄成回覆素材。模仿某位成員時，只使用該成員的語氣、節奏和口頭禪，不要混用其他成員的口頭禪。\n\n" + (isReplyAssist ? "回覆建議要求：以下 member_profile 是提問者本人，請模仿 user 本人的語氣，而不是模仿其他人。" : memberProfileSelection.selectionNote) + (memberProfileSelection.matchedTargetName ? "\n被模仿目標：" + memberProfileSelection.matchedTargetName : "") + "\n\n" + selectedMemberProfileMemories.join("\n")
     : memberProfileSelection.selectionNote + "\n目前沒有提供成員画像。";
 
 const memoryContext =
@@ -262,6 +359,38 @@ const shortTermAiContext =
         .join("\n\n")
     : "目前沒有最近 @ai 短期上下文。";
 
+const recentReplyMessages = recentReplyContextPoints
+  .map((item) => item.payload ?? {})
+  .filter((payload) => payload.text)
+  .sort((a, b) => Number(a.timestamp ?? 0) - Number(b.timestamp ?? 0))
+  .slice(-80);
+
+function formatTime(seconds) {
+  const date = new Date(Number(seconds || 0) * 1000);
+  return date.toISOString().slice(11, 16);
+}
+
+const recentReplyContext =
+  recentReplyMessages.length > 0
+    ? "最近 5 分鐘群聊現場（同群、由舊到新；如果訊息很少也不要要求更多資料）：\n\n" +
+      recentReplyMessages
+        .map((payload) => "[" + formatTime(payload.timestamp) + "] " + (payload.userName || payload.userId || "unknown") + ": " + payload.text)
+        .join("\n")
+    : "最近 5 分鐘群聊現場：目前沒有足夠消息；不要要求更多資料，直接根據現有上下文生成。";
+
+const replyAssistInstructions = isReplyAssist
+  ? [
+      "回覆建議模式：幫 user 寫一條像他本人會講的回覆，不是替 AI 自己回答。",
+      "必須結合最近 5 分鐘群聊現場、user 本人的 member_profile、短期 @ai 上下文和相關長期記憶。",
+      "只給 3 個可直接複製到 WhatsApp 的選項，不要長篇解釋。",
+      "格式固定：",
+      "首選：<最自然的一句>",
+      "嘴賤版：<更有群友感但不要惡意攻擊>",
+      "安全版：<比較穩陣、不冒犯的一句>",
+      "不要暴露 member_profile 原文，不要說你讀了資料，不要冒充其他成員，不要硬塞口頭禪。",
+    ].join("\n")
+  : "";
+
 const system = {
   role: "system",
   content: [
@@ -276,17 +405,18 @@ const system = {
     "只有當使用者問群內歷史、成員私事、過去聊天記錄、某人之前講過什麼、群內曾經發生什麼，而且記憶不足時，才需要先說目前沒有足夠記憶。",
     "如果使用者叫你講笑話或給建議，直接講；不要叫使用者先提供笑話，也不要叫使用者先提供資料才肯回答。",
     "你可以使用群組共同記憶、群組画像、成員画像回答問題。",
-    "群組記憶、group_profile、member_profile 只用來理解背景、人設、關係、常見梗和語氣；不要把舊訊息或成員經典語句當成可直接複製的回覆素材。",
-    "預設不要逐字引用、照抄或反覆使用任何成員的原句、口頭禪、經典語句或 Kelvin 等成員的 exact wording；要用自己的話自然改寫。",
+    "群組記憶和 member_profile 主要用來理解背景、人設、關係、常見梗和語氣；可以合理使用少量口頭禪或常見句式增加群味，但不要把舊訊息整句照抄成回覆素材。",
+    "閒聊、吐槽或使用者要求模仿時，可以自然使用口頭禪；每次最多用一個，必須貼合當下內容，不要硬塞、不要連續每句都用、不要列出口頭禪清單。",
     "預設不要主動拿以前發生過的事、成員舊對話、內部梗或口頭禪來開玩笑、舉例或回答普通問題；除非使用者明確問群內歷史、某人之前講過什麼或要求模仿。",
-    "即使用到歷史記憶，也預設只能概述事實、關係或傾向，不要輸出任何成員原句、引號內容、口頭禪或私密舊事細節。",
+    "模仿 Kelvin 等某位成員時，只使用該成員的語氣、節奏和口頭禪；不要混用其他成員的口頭禪，也不要冒充本人或大量複製舊原句。",
+    "即使用到歷史記憶，也預設只能概述事實、關係或傾向；除非是合理口頭禪使用，否則不要輸出成員原句、引號內容或私密舊事細節。",
     "只有使用者明確要求原句、逐字、引用或 exact wording 時，才可以短引用；引用時要清楚表示這是歷史記憶中的原句。",
     "隱私、安全、資料使用或洩漏問題：只解釋系統如何使用資料和記憶，不要引用任何成員舊句、舊事、內梗或 member_profile。",
     "預設統一使用同一個群友人格：幽默、嘴賤、毒舌少少、像朋友在群裡回覆。",
     "member_profile 預設只作為人物背景和內梗參考；不要主動按不同成員切換回覆人格。",
-    "例外：如果使用者明確要求模仿某位成員的說話方式，可以參考該 member_profile，輕量模仿該成員的節奏、語氣和互動方式，但不要冒充本人、不要惡意羞辱、不要重複套用其舊原句。",
-    "group_profile 是主要風格依據；如果 group_profile 與 member_profile 衝突，以 group_profile 和安全規則為準。",
-    "不要聲稱任何個性判斷，除非它來自 group_profile、member_profile 或原始記憶。",
+    "例外：如果使用者明確要求模仿某位成員的說話方式，可以參考該 member_profile，輕量模仿該成員的節奏、語氣、互動方式和口頭禪，但不要冒充本人、不要惡意羞辱、不要大量複製舊原句。",
+    "member_profile 和安全規則是主要風格依據；如果記憶內容與安全規則衝突，以安全規則為準。",
+    "不要聲稱任何個性判斷，除非它來自 member_profile 或原始記憶。",
     "回答要自然、有梗、像朋友在群裡回覆，不要像客服。",
     "如果使用者用「咁」「剛才」「上面」「你剛剛話」等追問，可以優先參考最近幾輪 @ai 對話短期上下文；短期上下文只用來理解連續對話，不是長期記憶。",
   ].join("\n"),
@@ -297,22 +427,29 @@ return [
     json: {
       ...body,
       retrievedMemories: memories,
-      retrievedGroupProfiles: groupProfileMemories,
       retrievedMemberProfiles: selectedMemberProfileMemories,
       retrievedMemberProfileSelection: memberProfileSelection,
       retrievedShortTermAiTurns: shortTermAiTurns,
+      retrievedRecentReplyContext: recentReplyMessages,
+      replyAssistTargetProfile: replyAssistTargetProfile ? {
+        userId: replyAssistTargetProfile.userId,
+        userName: replyAssistTargetProfile.userName,
+      } : null,
+      responseMode: isReplyAssist ? "reply_assist" : "chat",
+      responseModel,
       messages: [
         system,
         {
           role: "user",
           content:
-            groupProfileContext +
-            "\n\n" +
             memberProfileContext +
             "\n\n" +
             memoryContext +
             "\n\n" +
             shortTermAiContext +
+            "\n\n" +
+            recentReplyContext +
+            (replyAssistInstructions ? "\n\n" + replyAssistInstructions : "") +
             "\n\n使用者現在問：\n" +
             body.text,
         },
@@ -558,6 +695,7 @@ function buildAppendWebSearchContextCode() {
 const messages = Array.isArray(input.messages) ? [...input.messages] : [];
 const results = input.webSearch?.results || [];
 const faq = input.webSearch?.faq || [];
+const STRONG_RESPONSE_MODEL = "deepseek-v4-pro";
 
 function stripHtml(value) {
   return String(value || "")
@@ -612,6 +750,9 @@ return [
       ...input,
       messages,
       webSearchContext,
+      responseModel: webSearchContext || input.webSearch?.shouldSearch
+        ? STRONG_RESPONSE_MODEL
+        : input.responseModel,
     },
   },
 ];`;
@@ -784,8 +925,17 @@ function patchWebSearchWorkflow(workflow) {
 
 function patchWorkflow(workflow) {
   findNode(workflow, "prepare memory").parameters.jsCode = buildPrepareMemoryCode();
+  const memoryStatusNode = maybeFindNode(workflow, "prepare memory status");
+  if (memoryStatusNode) memoryStatusNode.parameters.jsCode = buildMemoryStatusCode();
   const saveMemoryNode = maybeFindNode(workflow, "save memory");
   if (saveMemoryNode) saveMemoryNode.parameters.jsCode = buildSaveMemoryCode();
+  removeSwitchRule(workflow, "Switch", (value) =>
+    JSON.stringify(value).includes("forget_me") ||
+    JSON.stringify(value).includes("rag-switch-forget-me")
+  );
+  removeNode(workflow, "build forget me request");
+  removeNode(workflow, "qdrant forget me");
+  removeNode(workflow, "prepare forget me response");
 
   upsertNode(workflow, {
     parameters: { jsCode: buildProfileScrollRequestCode() },
@@ -813,17 +963,49 @@ function patchWorkflow(workflow) {
     onError: "continueErrorOutput",
   });
 
+  upsertNode(workflow, {
+    parameters: { jsCode: buildRecentReplyContextScrollRequestCode() },
+    type: "n8n-nodes-base.code",
+    typeVersion: 2,
+    position: [848, -520],
+    id: "rag-build-recent-reply-context-scroll",
+    name: "build recent reply context scroll",
+  });
+
+  upsertNode(workflow, {
+    parameters: {
+      method: "POST",
+      url: "http://qdrant:6333/collections/whatsapp_memory/points/scroll",
+      sendBody: true,
+      specifyBody: "json",
+      jsonBody: "={{ JSON.stringify($json) }}",
+      options: {},
+    },
+    type: "n8n-nodes-base.httpRequest",
+    typeVersion: 4.4,
+    position: [1072, -520],
+    id: "rag-qdrant-scroll-recent-reply-context",
+    name: "qdrant scroll recent reply context",
+    onError: "continueRegularOutput",
+  });
+
   upsertWebSearchNodes(workflow);
 
-  findNode(workflow, "prepare memory").position = [848, -240];
+  findNode(workflow, "prepare memory").position = [1296, -240];
   const deepseek = maybeFindNode(workflow, "Deepseek");
-  if (deepseek) deepseek.position = [2416, -240];
+  if (deepseek) {
+    deepseek.position = [2416, -240];
+    deepseek.parameters.jsonBody =
+      '=     {\n       "model": "{{ $json.responseModel || \'deepseek-v4-flash\' }}",\n       "messages": {{ JSON.stringify($json.messages) }},\n       "stream": false\n     }';
+  }
   const saveMemory = maybeFindNode(workflow, "save memory");
   if (saveMemory) saveMemory.position = [2640, -240];
 
   connectOnly(workflow, "qdrant search memory", 0, "build qdrant profile scroll");
   connectOnly(workflow, "build qdrant profile scroll", 0, "qdrant scroll profiles");
-  connectOnly(workflow, "qdrant scroll profiles", 0, "prepare memory");
+  connectOnly(workflow, "qdrant scroll profiles", 0, "build recent reply context scroll");
+  connectOnly(workflow, "build recent reply context scroll", 0, "qdrant scroll recent reply context");
+  connectOnly(workflow, "qdrant scroll recent reply context", 0, "prepare memory");
   connectOnly(workflow, "prepare memory", 0, "build web search classifier");
   connectOnly(workflow, "build web search classifier", 0, "DeepSeek search classifier");
   connectOnly(workflow, "DeepSeek search classifier", 0, "parse web search decision");
@@ -864,9 +1046,11 @@ if (require.main === module) {
 module.exports = {
   buildAppendWebSearchContextCode,
   buildBraveSearchCode,
+  buildMemoryStatusCode,
   buildParseWebSearchDecisionCode,
   buildPrepareMemoryCode,
   buildProfileScrollRequestCode,
+  buildRecentReplyContextScrollRequestCode,
   buildSaveMemoryCode,
   buildSearchClassifierRequestCode,
   buildWebSearchDecisionCode,

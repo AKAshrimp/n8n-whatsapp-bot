@@ -5,6 +5,7 @@ const test = require("node:test");
 const {
   buildPrepareMemoryCode,
   buildProfileScrollRequestCode,
+  buildRecentReplyContextScrollRequestCode,
   buildAppendWebSearchContextCode,
   buildBraveSearchCode,
   buildSaveMemoryCode,
@@ -14,24 +15,38 @@ const {
   patchWorkflow,
 } = require("./patch-workflow-profile-context");
 
-test("buildProfileScrollRequestCode requests group and member profiles", () => {
+test("buildProfileScrollRequestCode requests member profiles only", () => {
   const code = buildProfileScrollRequestCode();
 
-  assert.match(code, /group_profile/);
   assert.match(code, /member_profile/);
+  assert.doesNotMatch(code, /group_profile/);
   assert.match(code, /with_vector: false/);
   assert.match(code, /limit: 20/);
+});
+
+test("buildRecentReplyContextScrollRequestCode requests only recent same-group messages", () => {
+  const code = buildRecentReplyContextScrollRequestCode();
+
+  assert.match(code, /RECENT_REPLY_CONTEXT_WINDOW_SECONDS = 5 \* 60/);
+  assert.match(code, /RECENT_REPLY_CONTEXT_LIMIT = 80/);
+  assert.match(code, /groupId/);
+  assert.match(code, /timestamp/);
+  assert.match(code, /range/);
+  assert.match(code, /whatsapp_message/);
+  assert.match(code, /with_vector: false/);
 });
 
 test("buildPrepareMemoryCode keeps unified persona by default but allows explicit imitation", () => {
   const code = buildPrepareMemoryCode();
 
-  assert.match(code, /groupProfileMemories/);
   assert.match(code, /memberProfileMemories/);
+  assert.doesNotMatch(code, /groupProfileMemories/);
+  assert.doesNotMatch(code, /retrievedGroupProfiles/);
+  assert.doesNotMatch(code, /group_profile/);
   assert.match(code, /使用者現在問的具體要求最優先/);
   assert.match(code, /預設統一使用同一個群友人格/);
   assert.match(code, /明確要求模仿某位成員/);
-  assert.match(code, /輕量模仿該成員的節奏、語氣和互動方式/);
+  assert.match(code, /輕量模仿該成員的節奏、語氣、互動方式和口頭禪/);
   assert.doesNotMatch(code, /更貼近該成員的風格/);
 });
 
@@ -45,14 +60,54 @@ test("buildPrepareMemoryCode only requires memory disclaimer for group-memory qu
   assert.match(code, /不要叫使用者先提供笑話/);
 });
 
+test("buildPrepareMemoryCode chooses pro model for reasoning and memory organization", () => {
+  const code = buildPrepareMemoryCode();
+
+  assert.match(code, /FAST_RESPONSE_MODEL = "deepseek-v4-flash"/);
+  assert.match(code, /STRONG_RESPONSE_MODEL = "deepseek-v4-pro"/);
+  assert.match(code, /needsStrongResponseModel/);
+  assert.match(code, /分析|整理|總結|总结|比較|比较|推理/);
+  assert.match(code, /groupHistoryRequested/);
+  assert.match(code, /responseModel/);
+});
+
+test("buildPrepareMemoryCode builds reply assist prompt from recent context and own profile", () => {
+  const code = buildPrepareMemoryCode();
+
+  assert.match(code, /qdrant scroll recent reply context/);
+  assert.match(code, /isReplyAssistRequest/);
+  assert.match(code, /扮我覆/);
+  assert.match(code, /我要點覆/);
+  assert.doesNotMatch(code, /\(\?:怎麼\|怎么\|點\|点\)回/);
+  assert.match(code, /recentReplyContext/);
+  assert.match(code, /selectOwnMemberProfileForReplyAssist/);
+  assert.match(code, /replyAssistTargetProfile/);
+  assert.match(code, /最近 5 分鐘群聊現場/);
+  assert.match(code, /幫 user 寫一條像他本人會講的回覆/);
+  assert.match(code, /首選：/);
+  assert.match(code, /嘴賤版：/);
+  assert.match(code, /安全版：/);
+  assert.match(code, /responseMode: isReplyAssist \? "reply_assist" : "chat"/);
+});
+
 test("buildPrepareMemoryCode treats member phrases as background, not reusable quotes", () => {
   const code = buildPrepareMemoryCode();
 
-  assert.match(code, /不要把舊訊息或成員經典語句當成可直接複製/);
-  assert.match(code, /預設不要逐字引用、照抄或反覆使用任何成員的原句/);
+  assert.match(code, /可以合理使用少量口頭禪或常見句式增加群味/);
+  assert.match(code, /每次最多用一個/);
+  assert.match(code, /不要硬塞、不要連續每句都用、不要列出口頭禪清單/);
   assert.match(code, /Kelvin/);
-  assert.match(code, /用自己的話自然改寫/);
+  assert.match(code, /只使用該成員的語氣、節奏和口頭禪/);
+  assert.match(code, /不要混用其他成員的口頭禪/);
   assert.match(code, /明確要求原句、逐字、引用或 exact wording/);
+});
+
+test("web search context upgrades final response model to pro", () => {
+  const code = buildAppendWebSearchContextCode();
+
+  assert.match(code, /STRONG_RESPONSE_MODEL = "deepseek-v4-pro"/);
+  assert.match(code, /input\.webSearch\?\.shouldSearch/);
+  assert.match(code, /responseModel: webSearchContext \|\| input\.webSearch\?\.shouldSearch/);
 });
 
 test("buildPrepareMemoryCode does not expose member profiles or raw history by default", () => {
@@ -173,6 +228,8 @@ test("patchWorkflow inserts profile scroll between qdrant search and prepare mem
 
   assert.ok(workflow.nodes.some((node) => node.name === "build qdrant profile scroll"));
   assert.ok(workflow.nodes.some((node) => node.name === "qdrant scroll profiles"));
+  assert.ok(workflow.nodes.some((node) => node.name === "build recent reply context scroll"));
+  assert.ok(workflow.nodes.some((node) => node.name === "qdrant scroll recent reply context"));
   assert.ok(workflow.nodes.some((node) => node.name === "build web search classifier"));
   assert.ok(workflow.nodes.some((node) => node.name === "DeepSeek search classifier"));
   assert.ok(workflow.nodes.some((node) => node.name === "parse web search decision"));
@@ -184,6 +241,12 @@ test("patchWorkflow inserts profile scroll between qdrant search and prepare mem
     { node: "build qdrant profile scroll", type: "main", index: 0 },
   ]);
   assert.deepEqual(workflow.connections["qdrant scroll profiles"].main[0], [
+    { node: "build recent reply context scroll", type: "main", index: 0 },
+  ]);
+  assert.deepEqual(workflow.connections["build recent reply context scroll"].main[0], [
+    { node: "qdrant scroll recent reply context", type: "main", index: 0 },
+  ]);
+  assert.deepEqual(workflow.connections["qdrant scroll recent reply context"].main[0], [
     { node: "prepare memory", type: "main", index: 0 },
   ]);
   assert.deepEqual(workflow.connections["prepare memory"].main[0], [
@@ -213,6 +276,79 @@ test("patchWorkflow inserts profile scroll between qdrant search and prepare mem
   assert.deepEqual(workflow.connections["append web search context"].main[0], [
     { node: "Deepseek", type: "main", index: 0 },
   ]);
+});
+
+test("patchWorkflow removes forget-me deletion branch", () => {
+  const workflow = {
+    nodes: [
+      {
+        name: "Switch",
+        parameters: {
+          rules: {
+            values: [
+              {
+                conditions: {
+                  conditions: [
+                    {
+                      id: "rag-switch-memory-status",
+                      rightValue: "memory_status",
+                    },
+                  ],
+                },
+              },
+              {
+                conditions: {
+                  conditions: [
+                    {
+                      id: "rag-switch-forget-me",
+                      rightValue: "forget_me",
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      },
+      { name: "prepare memory", parameters: { jsCode: "old" } },
+      { name: "qdrant search memory", parameters: {}, type: "http", typeVersion: 1, position: [0, 0], id: "search" },
+      { name: "prepare memory status", parameters: { jsCode: "你可以用 @ai forget me 刪除你在此群組的記憶。" } },
+      { name: "build forget me request", parameters: {} },
+      { name: "qdrant forget me", parameters: { url: "http://qdrant:6333/collections/whatsapp_memory/points/delete?wait=true" } },
+      { name: "prepare forget me response", parameters: { jsCode: "已刪除你在這個群組的 AI 記憶。" } },
+    ],
+    connections: {
+      Switch: {
+        main: [
+          [{ node: "qdrant search memory", type: "main", index: 0 }],
+          [{ node: "prepare memory status", type: "main", index: 0 }],
+          [{ node: "build forget me request", type: "main", index: 0 }],
+        ],
+      },
+      "build forget me request": {
+        main: [[{ node: "qdrant forget me", type: "main", index: 0 }]],
+      },
+      "qdrant forget me": {
+        main: [[{ node: "prepare forget me response", type: "main", index: 0 }]],
+      },
+      "prepare forget me response": {
+        main: [[{ node: "return message", type: "main", index: 0 }]],
+      },
+      "qdrant search memory": {
+        main: [[{ node: "prepare memory", type: "main", index: 0 }]],
+      },
+    },
+  };
+
+  patchWorkflow(workflow);
+
+  assert.equal(workflow.nodes.some((node) => /forget me/i.test(node.name)), false);
+  assert.doesNotMatch(JSON.stringify(workflow), /points\/delete\?wait=true/);
+  assert.doesNotMatch(JSON.stringify(workflow), /forget_me|rag-switch-forget-me/);
+  assert.doesNotMatch(
+    workflow.nodes.find((node) => node.name === "prepare memory status").parameters.jsCode,
+    /刪除|删除|forget me/
+  );
 });
 
 test("patchWebSearchWorkflow preserves existing prepare memory code", () => {
@@ -296,4 +432,20 @@ test("local workflow sends image edit failures back to WhatsApp", () => {
   assert.deepEqual(workflow.connections["prepare image error message"].main[0], [
     { node: "return message", type: "main", index: 0 },
   ]);
+});
+
+test("local workflow does not include forget-me deletion nodes", () => {
+  const workflows = JSON.parse(
+    fs.readFileSync("n8n/workflows/workflows.json", "utf8")
+  );
+  const workflow = Array.isArray(workflows) ? workflows[0] : workflows;
+  const serialized = JSON.stringify(workflow);
+
+  assert.equal(workflow.nodes.some((node) => /forget me/i.test(node.name)), false);
+  assert.doesNotMatch(serialized, /points\/delete\?wait=true/);
+  assert.doesNotMatch(serialized, /forget_me|rag-switch-forget-me/);
+  assert.doesNotMatch(
+    workflow.nodes.find((node) => node.name === "prepare memory status").parameters.jsCode,
+    /刪除|删除|forget me/
+  );
 });
