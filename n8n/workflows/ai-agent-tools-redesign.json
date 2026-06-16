@@ -368,6 +368,19 @@
       },
       {
         "parameters": {
+          "jsCode": "function originalPayload() {\n  try {\n    return $(\"Normalize Payload\").first().json || {};\n  } catch (error) {\n    return {};\n  }\n}\n\nconst original = originalPayload();\nconst response = $json || {};\nconst failed = Boolean(response.error || response.message?.error);\nconst replyText = failed\n  ? \"記低唔成功，等陣再試。\"\n  : \"記低咗。\";\n\nreturn [\n  {\n    json: {\n      ...original,\n      groupId: original.groupId || response.groupId || \"\",\n      userId: original.userId || response.userId || \"\",\n      text: original.text || response.text || \"\",\n      replyText,\n      replyType: \"text\",\n      message: replyText,\n    },\n  },\n];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          180,
+          460
+        ],
+        "id": "format-memory-write-result",
+        "name": "Format Memory Write Result"
+      },
+      {
+        "parameters": {
           "method": "GET",
           "url": "https://api.search.brave.com/res/v1/web/search",
           "sendQuery": true,
@@ -421,6 +434,19 @@
       },
       {
         "parameters": {
+          "jsCode": "function originalPayload() {\n  try {\n    return $(\"Normalize Payload\").first().json || {};\n  } catch (error) {\n    return {};\n  }\n}\n\nconst original = originalPayload();\nconst response = $json || {};\nconst failed = Boolean(response.error || response.message?.error);\nconst imageUrl =\n  response.data?.[0]?.url ||\n  response.result?.url ||\n  response.url ||\n  response.imageUrl ||\n  \"\";\nconst imagePayload = response.data?.[0] || response.result || response.imagePayload || null;\nconst replyText = failed\n  ? \"圖片處理暫時失敗，等陣再試。\"\n  : imageUrl\n    ? `圖片準備好：${imageUrl}`\n    : \"圖片請求已處理。\";\n\nreturn [\n  {\n    json: {\n      ...original,\n      groupId: original.groupId || response.groupId || \"\",\n      userId: original.userId || response.userId || \"\",\n      text: original.text || response.text || \"\",\n      replyText,\n      replyType: imageUrl ? \"image\" : \"text\",\n      imagePayload,\n      message: replyText,\n    },\n  },\n];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          180,
+          860
+        ],
+        "id": "format-image-result",
+        "name": "Format Image Result"
+      },
+      {
+        "parameters": {
           "method": "GET",
           "url": "http://qdrant:6333/collections/whatsapp_memory",
           "options": {}
@@ -437,6 +463,19 @@
       },
       {
         "parameters": {
+          "jsCode": "function originalPayload() {\n  try {\n    return $(\"Normalize Payload\").first().json || {};\n  } catch (error) {\n    return {};\n  }\n}\n\nconst original = originalPayload();\nconst response = $json || {};\nconst failed = Boolean(response.error || response.message?.error);\nconst pointsCount = response.result?.points_count ?? response.result?.pointsCount ?? response.points_count;\nconst vectorsCount = response.result?.vectors_count ?? response.result?.vectorsCount ?? response.vectors_count;\nconst status = response.result?.status || response.status || \"\";\nconst details = [\n  status ? `狀態：${status}` : \"\",\n  pointsCount !== undefined ? `記憶數量：${pointsCount}` : \"\",\n  vectorsCount !== undefined ? `向量數量：${vectorsCount}` : \"\",\n].filter(Boolean).join(\"\\n\");\nconst replyText = failed\n  ? \"暫時查唔到記憶狀態。\"\n  : details || \"記憶庫連線正常。\";\n\nreturn [\n  {\n    json: {\n      ...original,\n      groupId: original.groupId || response.groupId || \"\",\n      userId: original.userId || response.userId || \"\",\n      text: original.text || response.text || \"\",\n      replyText,\n      replyType: \"text\",\n      message: replyText,\n    },\n  },\n];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          180,
+          1060
+        ],
+        "id": "format-memory-status-result",
+        "name": "Format Memory Status Result"
+      },
+      {
+        "parameters": {
           "method": "GET",
           "url": "http://qdrant:6333/collections/whatsapp_memory",
           "options": {}
@@ -450,6 +489,19 @@
         "id": "existing-qdrant-collection",
         "name": "Existing Qdrant Collection",
         "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "function originalPayload() {\n  try {\n    return $(\"Normalize Payload\").first().json || {};\n  } catch (error) {\n    return {};\n  }\n}\n\nconst original = originalPayload();\nconst response = $json || {};\nconst failed = Boolean(response.error || response.message?.error);\nconst collectionName = response.result?.config?.params?.vectors ? \"whatsapp_memory\" : \"whatsapp_memory\";\nconst pointsCount = response.result?.points_count ?? response.result?.pointsCount ?? response.points_count;\nconst status = response.result?.status || response.status || \"\";\nconst replyText = failed\n  ? \"暫時查唔到管理狀態。\"\n  : [\n      `Collection：${collectionName}`,\n      status ? `狀態：${status}` : \"\",\n      pointsCount !== undefined ? `記憶數量：${pointsCount}` : \"\",\n    ].filter(Boolean).join(\"\\n\") || \"管理檢查完成。\";\n\nreturn [\n  {\n    json: {\n      ...original,\n      groupId: original.groupId || response.groupId || \"\",\n      userId: original.userId || response.userId || \"\",\n      text: original.text || response.text || \"\",\n      replyText,\n      replyType: \"text\",\n      message: replyText,\n    },\n  },\n];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -580,
+          820
+        ],
+        "id": "format-admin-status-result",
+        "name": "Format Admin Status Result"
       },
       {
         "parameters": {
@@ -683,6 +735,94 @@
           [
             {
               "node": "Agent Memory Instructions",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Tool: Write Memory": {
+        "main": [
+          [
+            {
+              "node": "Format Memory Write Result",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Format Memory Write Result": {
+        "main": [
+          [
+            {
+              "node": "Format WhatsApp Reply",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Tool: Memory Status": {
+        "main": [
+          [
+            {
+              "node": "Format Memory Status Result",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Format Memory Status Result": {
+        "main": [
+          [
+            {
+              "node": "Format WhatsApp Reply",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Tool: Image Generate/Edit": {
+        "main": [
+          [
+            {
+              "node": "Format Image Result",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Format Image Result": {
+        "main": [
+          [
+            {
+              "node": "Format WhatsApp Reply",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Existing Qdrant Collection": {
+        "main": [
+          [
+            {
+              "node": "Format Admin Status Result",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Format Admin Status Result": {
+        "main": [
+          [
+            {
+              "node": "Format WhatsApp Reply",
               "type": "main",
               "index": 0
             }

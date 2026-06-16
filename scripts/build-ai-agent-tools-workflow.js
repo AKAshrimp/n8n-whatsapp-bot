@@ -22,10 +22,14 @@ const expectedNodeNames = Object.freeze([
   "Structured Reply Parser",
   "Tool: Search Memory",
   "Tool: Write Memory",
+  "Format Memory Write Result",
   "Tool: Brave Search",
   "Tool: Image Generate/Edit",
+  "Format Image Result",
   "Tool: Memory Status",
+  "Format Memory Status Result",
   "Existing Qdrant Collection",
+  "Format Admin Status Result",
   "Member Profile Retriever",
   "Recent Context Store",
   "Compatibility Formatter",
@@ -216,6 +220,132 @@ return [
       replyType: reply.type || "text",
       imagePayload: reply.imagePayload || null,
       memoryAction: reply.memoryAction || null,
+    },
+  },
+];`;
+}
+
+function buildOriginalPayloadAccessorCode() {
+  return String.raw`function originalPayload() {
+  try {
+    return $("Normalize Payload").first().json || {};
+  } catch (error) {
+    return {};
+  }
+}
+
+const original = originalPayload();
+const response = $json || {};`;
+}
+
+function buildMemoryWriteResultCode() {
+  return `${buildOriginalPayloadAccessorCode()}
+const failed = Boolean(response.error || response.message?.error);
+const replyText = failed
+  ? "記低唔成功，等陣再試。"
+  : "記低咗。";
+
+return [
+  {
+    json: {
+      ...original,
+      groupId: original.groupId || response.groupId || "",
+      userId: original.userId || response.userId || "",
+      text: original.text || response.text || "",
+      replyText,
+      replyType: "text",
+      message: replyText,
+    },
+  },
+];`;
+}
+
+function buildMemoryStatusResultCode() {
+  return `${buildOriginalPayloadAccessorCode()}
+const failed = Boolean(response.error || response.message?.error);
+const pointsCount = response.result?.points_count ?? response.result?.pointsCount ?? response.points_count;
+const vectorsCount = response.result?.vectors_count ?? response.result?.vectorsCount ?? response.vectors_count;
+const status = response.result?.status || response.status || "";
+const details = [
+  status ? \`狀態：\${status}\` : "",
+  pointsCount !== undefined ? \`記憶數量：\${pointsCount}\` : "",
+  vectorsCount !== undefined ? \`向量數量：\${vectorsCount}\` : "",
+].filter(Boolean).join("\\n");
+const replyText = failed
+  ? "暫時查唔到記憶狀態。"
+  : details || "記憶庫連線正常。";
+
+return [
+  {
+    json: {
+      ...original,
+      groupId: original.groupId || response.groupId || "",
+      userId: original.userId || response.userId || "",
+      text: original.text || response.text || "",
+      replyText,
+      replyType: "text",
+      message: replyText,
+    },
+  },
+];`;
+}
+
+function buildImageResultCode() {
+  return `${buildOriginalPayloadAccessorCode()}
+const failed = Boolean(response.error || response.message?.error);
+const imageUrl =
+  response.data?.[0]?.url ||
+  response.result?.url ||
+  response.url ||
+  response.imageUrl ||
+  "";
+const imagePayload = response.data?.[0] || response.result || response.imagePayload || null;
+const replyText = failed
+  ? "圖片處理暫時失敗，等陣再試。"
+  : imageUrl
+    ? \`圖片準備好：\${imageUrl}\`
+    : "圖片請求已處理。";
+
+return [
+  {
+    json: {
+      ...original,
+      groupId: original.groupId || response.groupId || "",
+      userId: original.userId || response.userId || "",
+      text: original.text || response.text || "",
+      replyText,
+      replyType: imageUrl ? "image" : "text",
+      imagePayload,
+      message: replyText,
+    },
+  },
+];`;
+}
+
+function buildAdminStatusResultCode() {
+  return `${buildOriginalPayloadAccessorCode()}
+const failed = Boolean(response.error || response.message?.error);
+const collectionName = response.result?.config?.params?.vectors ? "whatsapp_memory" : "whatsapp_memory";
+const pointsCount = response.result?.points_count ?? response.result?.pointsCount ?? response.points_count;
+const status = response.result?.status || response.status || "";
+const replyText = failed
+  ? "暫時查唔到管理狀態。"
+  : [
+      \`Collection：\${collectionName}\`,
+      status ? \`狀態：\${status}\` : "",
+      pointsCount !== undefined ? \`記憶數量：\${pointsCount}\` : "",
+    ].filter(Boolean).join("\\n") || "管理檢查完成。";
+
+return [
+  {
+    json: {
+      ...original,
+      groupId: original.groupId || response.groupId || "",
+      userId: original.userId || response.userId || "",
+      text: original.text || response.text || "",
+      replyText,
+      replyType: "text",
+      message: replyText,
     },
   },
 ];`;
@@ -433,6 +563,13 @@ function buildNodes(sourceWorkflow) {
       { typeVersion: 4.4, onError: "continueRegularOutput" }
     ),
     node(
+      "Format Memory Write Result",
+      "n8n-nodes-base.code",
+      [180, 460],
+      { jsCode: buildMemoryWriteResultCode() },
+      { typeVersion: 2 }
+    ),
+    node(
       "Tool: Brave Search",
       "n8n-nodes-base.httpRequest",
       [-60, 660],
@@ -476,6 +613,13 @@ function buildNodes(sourceWorkflow) {
       { typeVersion: 4.4, onError: "continueRegularOutput" }
     ),
     node(
+      "Format Image Result",
+      "n8n-nodes-base.code",
+      [180, 860],
+      { jsCode: buildImageResultCode() },
+      { typeVersion: 2 }
+    ),
+    node(
       "Tool: Memory Status",
       "n8n-nodes-base.httpRequest",
       [-60, 1060],
@@ -487,6 +631,13 @@ function buildNodes(sourceWorkflow) {
       { typeVersion: 4.4, onError: "continueRegularOutput" }
     ),
     node(
+      "Format Memory Status Result",
+      "n8n-nodes-base.code",
+      [180, 1060],
+      { jsCode: buildMemoryStatusResultCode() },
+      { typeVersion: 2 }
+    ),
+    node(
       "Existing Qdrant Collection",
       "n8n-nodes-base.httpRequest",
       [-820, 620],
@@ -496,6 +647,13 @@ function buildNodes(sourceWorkflow) {
         options: {},
       },
       { typeVersion: 4.4, onError: "continueRegularOutput" }
+    ),
+    node(
+      "Format Admin Status Result",
+      "n8n-nodes-base.code",
+      [-580, 820],
+      { jsCode: buildAdminStatusResultCode() },
+      { typeVersion: 2 }
     ),
     node(
       "Member Profile Retriever",
@@ -636,6 +794,30 @@ function buildConnections() {
     },
     "Compatibility Formatter": {
       main: [[connection("Agent Memory Instructions")]],
+    },
+    "Tool: Write Memory": {
+      main: [[connection("Format Memory Write Result")]],
+    },
+    "Format Memory Write Result": {
+      main: [[connection("Format WhatsApp Reply")]],
+    },
+    "Tool: Memory Status": {
+      main: [[connection("Format Memory Status Result")]],
+    },
+    "Format Memory Status Result": {
+      main: [[connection("Format WhatsApp Reply")]],
+    },
+    "Tool: Image Generate/Edit": {
+      main: [[connection("Format Image Result")]],
+    },
+    "Format Image Result": {
+      main: [[connection("Format WhatsApp Reply")]],
+    },
+    "Existing Qdrant Collection": {
+      main: [[connection("Format Admin Status Result")]],
+    },
+    "Format Admin Status Result": {
+      main: [[connection("Format WhatsApp Reply")]],
     },
     "Agent Memory Instructions": {
       main: [[connection("Agent Context Builder")]],

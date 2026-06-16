@@ -38,6 +38,40 @@ function directMainInputs(workflow, toNode) {
   return inputs;
 }
 
+function mainOutputTargets(workflow, fromNode, outputIndex = 0) {
+  return workflow.connections[fromNode]?.main?.[outputIndex] || [];
+}
+
+function routeReachesTargetWithoutNode(workflow, fromNode, outputIndex, targetNode, forbiddenNode) {
+  const queue = mainOutputTargets(workflow, fromNode, outputIndex).map((target) => target.node);
+  const visited = new Set();
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+
+    if (current === forbiddenNode) {
+      return false;
+    }
+
+    if (current === targetNode) {
+      return true;
+    }
+
+    if (visited.has(current)) {
+      continue;
+    }
+    visited.add(current);
+
+    for (const output of workflow.connections[current]?.main || []) {
+      for (const target of output || []) {
+        queue.push(target.node);
+      }
+    }
+  }
+
+  return false;
+}
+
 test("buildAiAgentToolsWorkflow creates a new inactive workflow without mutating source", () => {
   const source = loadCurrentWorkflow();
   const sourceSnapshot = JSON.stringify(source);
@@ -143,6 +177,24 @@ test("chat route enters Agent Context Builder only after memory instructions", (
   assert.deepEqual(directMainInputs(workflow, "Agent Context Builder"), [
     "Agent Memory Instructions",
   ]);
+});
+
+test("non-chat command routes reach reply formatter without entering agent context", () => {
+  const workflow = buildAiAgentToolsWorkflow(loadCurrentWorkflow());
+
+  for (const outputIndex of [1, 2, 3, 4]) {
+    assert.equal(
+      routeReachesTargetWithoutNode(
+        workflow,
+        "Intent Router",
+        outputIndex,
+        "Format WhatsApp Reply",
+        "Agent Context Builder"
+      ),
+      true,
+      `Intent Router output ${outputIndex} should reach Format WhatsApp Reply without Agent Context Builder`
+    );
+  }
 });
 
 
