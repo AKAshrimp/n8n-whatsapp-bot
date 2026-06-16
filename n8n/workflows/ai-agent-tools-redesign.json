@@ -689,61 +689,6 @@
           ]
         ]
       },
-      "Tool: Write Memory": {
-        "main": [
-          [
-            {
-              "node": "Agent Context Builder",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "Tool: Memory Status": {
-        "main": [
-          [
-            {
-              "node": "Agent Context Builder",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "Tool: Image Generate/Edit": {
-        "main": [
-          [
-            {
-              "node": "Agent Context Builder",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "Existing Qdrant Collection": {
-        "main": [
-          [
-            {
-              "node": "Agent Context Builder",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "Tool: Brave Search": {
-        "main": [
-          [
-            {
-              "node": "Agent Context Builder",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
       "Agent Memory Instructions": {
         "main": [
           [

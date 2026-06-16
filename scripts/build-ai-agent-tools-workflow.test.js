@@ -22,6 +22,22 @@ function connectionTargetNames(workflow, fromNode, outputIndex) {
   return (workflow.connections[fromNode]?.main?.[outputIndex] || []).map((target) => target.node);
 }
 
+function directMainInputs(workflow, toNode) {
+  const inputs = [];
+
+  for (const [fromNode, connections] of Object.entries(workflow.connections)) {
+    for (const output of connections.main || []) {
+      for (const target of output || []) {
+        if (target.node === toNode) {
+          inputs.push(fromNode);
+        }
+      }
+    }
+  }
+
+  return inputs;
+}
+
 test("buildAiAgentToolsWorkflow creates a new inactive workflow without mutating source", () => {
   const source = loadCurrentWorkflow();
   const sourceSnapshot = JSON.stringify(source);
@@ -118,6 +134,15 @@ test("intent router fans out to the expected tool outputs", () => {
     "Existing Qdrant Collection",
   ]);
   assert.deepEqual(connectionTargetNames(workflow, "Intent Router", 5), ["Error Fallback"]);
+});
+
+test("chat route enters Agent Context Builder only after memory instructions", () => {
+  const workflow = buildAiAgentToolsWorkflow(loadCurrentWorkflow());
+
+  assert.deepEqual(connectionTargetNames(workflow, "Tool: Brave Search", 0), []);
+  assert.deepEqual(directMainInputs(workflow, "Agent Context Builder"), [
+    "Agent Memory Instructions",
+  ]);
 });
 
 

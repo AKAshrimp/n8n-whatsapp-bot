@@ -637,21 +637,6 @@ function buildConnections() {
     "Compatibility Formatter": {
       main: [[connection("Agent Memory Instructions")]],
     },
-    "Tool: Write Memory": {
-      main: [[connection("Agent Context Builder")]],
-    },
-    "Tool: Memory Status": {
-      main: [[connection("Agent Context Builder")]],
-    },
-    "Tool: Image Generate/Edit": {
-      main: [[connection("Agent Context Builder")]],
-    },
-    "Existing Qdrant Collection": {
-      main: [[connection("Agent Context Builder")]],
-    },
-    "Tool: Brave Search": {
-      main: [[connection("Agent Context Builder")]],
-    },
     "Agent Memory Instructions": {
       main: [[connection("Agent Context Builder")]],
     },
