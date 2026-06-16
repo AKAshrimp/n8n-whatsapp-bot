@@ -1,0 +1,615 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>n8n WhatsApp Bot 社區節點重設計方案</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #090b12;
+      --panel: rgba(20, 24, 38, 0.82);
+      --panel-2: rgba(28, 34, 53, 0.9);
+      --line: rgba(255, 255, 255, 0.12);
+      --text: #eef3ff;
+      --muted: #97a3ba;
+      --accent: #ff6d4d;
+      --accent-2: #7c5cff;
+      --green: #45d483;
+      --blue: #57a8ff;
+      --yellow: #ffd166;
+      --red: #ff5c7a;
+      --shadow: 0 24px 80px rgba(0, 0, 0, 0.38);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(255, 109, 77, 0.18), transparent 34rem),
+        radial-gradient(circle at top right, rgba(124, 92, 255, 0.2), transparent 30rem),
+        linear-gradient(135deg, #070911 0%, #12182a 55%, #070911 100%);
+      color: var(--text);
+    }
+
+    .page {
+      width: min(1180px, calc(100vw - 40px));
+      margin: 0 auto;
+      padding: 56px 0 72px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 28px;
+      align-items: stretch;
+      margin-bottom: 28px;
+    }
+
+    .hero-card,
+    .panel {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(20px);
+    }
+
+    .hero-card {
+      padding: 36px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .hero-card::after {
+      content: "";
+      position: absolute;
+      right: -110px;
+      top: -110px;
+      width: 260px;
+      height: 260px;
+      border-radius: 999px;
+      background: radial-gradient(circle, rgba(255, 109, 77, 0.32), transparent 68%);
+      pointer-events: none;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      margin-bottom: 18px;
+      padding: 8px 12px;
+      border: 1px solid rgba(255, 109, 77, 0.28);
+      border-radius: 999px;
+      color: #ffd7cd;
+      background: rgba(255, 109, 77, 0.1);
+      font-size: 13px;
+      letter-spacing: 0.03em;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0;
+      line-height: 1.08;
+    }
+
+    h1 {
+      max-width: 760px;
+      font-size: clamp(36px, 6vw, 68px);
+      letter-spacing: -0.06em;
+    }
+
+    h2 {
+      font-size: 30px;
+      letter-spacing: -0.03em;
+      margin-bottom: 18px;
+    }
+
+    h3 {
+      font-size: 18px;
+      letter-spacing: -0.02em;
+    }
+
+    p {
+      color: var(--muted);
+      line-height: 1.72;
+      margin: 0;
+    }
+
+    .lead {
+      margin-top: 20px;
+      max-width: 760px;
+      font-size: 18px;
+    }
+
+    .hero-side {
+      padding: 28px;
+      display: grid;
+      align-content: center;
+      gap: 18px;
+    }
+
+    .metric {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 18px;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .metric b {
+      font-size: 26px;
+      color: var(--text);
+    }
+
+    .section {
+      margin-top: 28px;
+    }
+
+    .panel {
+      padding: 28px;
+    }
+
+    .grid {
+      display: grid;
+      gap: 18px;
+    }
+
+    .grid.cols-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .grid.cols-2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .card {
+      min-height: 100%;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: var(--panel-2);
+    }
+
+    .card .tag {
+      display: inline-flex;
+      margin-bottom: 15px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(87, 168, 255, 0.12);
+      color: #b9dcff;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    ul {
+      margin: 14px 0 0;
+      padding-left: 18px;
+      color: var(--muted);
+      line-height: 1.72;
+    }
+
+    li + li {
+      margin-top: 6px;
+    }
+
+    .flow-wrap {
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+
+    .flow {
+      min-width: 1030px;
+      display: grid;
+      grid-template-columns: 160px 210px 210px 210px 210px;
+      gap: 16px;
+      align-items: start;
+    }
+
+    .lane {
+      position: relative;
+      padding: 18px;
+      min-height: 650px;
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      background: rgba(255, 255, 255, 0.035);
+    }
+
+    .lane-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+      color: #dbe6ff;
+      font-weight: 800;
+    }
+
+    .dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 6px rgba(255, 109, 77, 0.12);
+    }
+
+    .node {
+      position: relative;
+      margin-bottom: 14px;
+      padding: 15px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.035));
+    }
+
+    .node strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 14px;
+    }
+
+    .node span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .node.green {
+      border-color: rgba(69, 212, 131, 0.35);
+    }
+
+    .node.blue {
+      border-color: rgba(87, 168, 255, 0.35);
+    }
+
+    .node.purple {
+      border-color: rgba(124, 92, 255, 0.38);
+    }
+
+    .node.yellow {
+      border-color: rgba(255, 209, 102, 0.38);
+    }
+
+    .node.red {
+      border-color: rgba(255, 92, 122, 0.38);
+    }
+
+    .connector {
+      margin: 8px 0 14px;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.28), transparent);
+    }
+
+    .swim-note {
+      margin-top: 12px;
+      padding: 14px;
+      border: 1px dashed rgba(255, 255, 255, 0.18);
+      border-radius: 16px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+      background: rgba(0, 0, 0, 0.14);
+    }
+
+    .compare {
+      display: grid;
+      grid-template-columns: 0.9fr 1.1fr;
+      gap: 18px;
+    }
+
+    .bad-good {
+      display: grid;
+      gap: 12px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 11px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.06);
+      color: #d8e2f8;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .pill.good {
+      color: #c2ffd8;
+      background: rgba(69, 212, 131, 0.12);
+    }
+
+    .pill.warn {
+      color: #ffe4a8;
+      background: rgba(255, 209, 102, 0.12);
+    }
+
+    .timeline {
+      display: grid;
+      gap: 14px;
+      counter-reset: step;
+    }
+
+    .step {
+      display: grid;
+      grid-template-columns: 48px 1fr;
+      gap: 16px;
+      align-items: start;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .step::before {
+      counter-increment: step;
+      content: counter(step);
+      display: grid;
+      place-items: center;
+      width: 40px;
+      height: 40px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      color: white;
+      font-weight: 900;
+    }
+
+    .footer {
+      margin-top: 28px;
+      padding: 24px;
+      border: 1px solid rgba(255, 109, 77, 0.28);
+      border-radius: 24px;
+      background: rgba(255, 109, 77, 0.09);
+    }
+
+    @media (max-width: 900px) {
+      .hero,
+      .compare,
+      .grid.cols-2,
+      .grid.cols-3 {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <div class="hero-card">
+        <div class="eyebrow">n8n Community Node Redesign · Draft 01</div>
+        <h1>把 WhatsApp AI Bot 重設計成更清楚、更好看的社區節點 workflow</h1>
+        <p class="lead">目標不是在舊 workflow 上修補，而是新建一套乾淨的 n8n project。大 Code node 拆成標準節點、AI Agent、Qdrant、HTTP Request、Switch、Set/Edit Fields 等可視化模組，讓流程可以被看懂、維護和展示。</p>
+      </div>
+      <aside class="hero-side hero-card">
+        <div class="metric">
+          <span>設計方向</span>
+          <b>New Project</b>
+        </div>
+        <div class="metric">
+          <span>核心原則</span>
+          <b>少 Code</b>
+        </div>
+        <div class="metric">
+          <span>視覺風格</span>
+          <b>分區清楚</b>
+        </div>
+      </aside>
+    </section>
+
+    <section class="section panel">
+      <h2>我建議的新 workflow 視覺結構</h2>
+      <p>把畫布分成 5 條泳道，每條泳道只做一類事情。這樣打開 n8n 時不用追一堆斜線，也能很快知道「訊息去哪裡」、「記憶去哪裡」、「AI 怎麼回」。</p>
+      <div class="flow-wrap section">
+        <div class="flow">
+          <div class="lane">
+            <div class="lane-title"><span class="dot"></span>入口</div>
+            <div class="node green">
+              <strong>When chat message received</strong>
+              <span>Webhook / Chat Trigger，接收 WhatsApp bridge 傳來的訊息。</span>
+            </div>
+            <div class="connector"></div>
+            <div class="node">
+              <strong>Normalize Message</strong>
+              <span>Set / Edit Fields，統一 message、sender、group、timestamp。</span>
+            </div>
+            <div class="node">
+              <strong>Command Router</strong>
+              <span>Switch，分流 chat、record、memory、image、admin。</span>
+            </div>
+            <div class="swim-note">入口區保持短，方便 debug webhook payload。</div>
+          </div>
+
+          <div class="lane">
+            <div class="lane-title"><span class="dot"></span>記憶</div>
+            <div class="node purple">
+              <strong>Embeddings</strong>
+              <span>OpenAI-compatible Embeddings 或社區 embedding node。</span>
+            </div>
+            <div class="node purple">
+              <strong>Qdrant Vector Store</strong>
+              <span>替代多個 build qdrant request Code node。</span>
+            </div>
+            <div class="node">
+              <strong>Member Profile Lookup</strong>
+              <span>Qdrant / Data Store 查群成員 profile 和近期上下文。</span>
+            </div>
+            <div class="node yellow">
+              <strong>Memory Policy</strong>
+              <span>If / Switch 控制是否寫入、是否查詢、是否回覆記憶狀態。</span>
+            </div>
+            <div class="swim-note">保留 RAG，但把 JSON request builder 移走。</div>
+          </div>
+
+          <div class="lane">
+            <div class="lane-title"><span class="dot"></span>工具</div>
+            <div class="node blue">
+              <strong>Brave Search</strong>
+              <span>HTTP Request + Credential，替代 Code 裡讀 key 和 fetch。</span>
+            </div>
+            <div class="node blue">
+              <strong>List Collections</strong>
+              <span>Qdrant 管理節點，用於健康檢查和 collection debug。</span>
+            </div>
+            <div class="node blue">
+              <strong>Image Tool</strong>
+              <span>HTTP Request 或社區 image generation node，獨立成支線。</span>
+            </div>
+            <div class="swim-note">工具節點集中擺放，連到 AI Agent 或分支流程。</div>
+          </div>
+
+          <div class="lane">
+            <div class="lane-title"><span class="dot"></span>AI</div>
+            <div class="node red">
+              <strong>DeepSeek Chat Model</strong>
+              <span>用 n8n AI model node 或 OpenAI-compatible Chat Model。</span>
+            </div>
+            <div class="node red">
+              <strong>Basic LLM Chain / AI Agent</strong>
+              <span>主回覆生成，接收記憶、profile、web search context。</span>
+            </div>
+            <div class="node">
+              <strong>Structured Output Parser</strong>
+              <span>取代 parse web search decision 這類解析 Code。</span>
+            </div>
+            <div class="node">
+              <strong>Reply Guardrails</strong>
+              <span>簡短安全規則、不要洩露原始歷史、控制語氣。</span>
+            </div>
+            <div class="swim-note">AI 區只看模型、prompt、工具和輸出。</div>
+          </div>
+
+          <div class="lane">
+            <div class="lane-title"><span class="dot"></span>輸出</div>
+            <div class="node green">
+              <strong>Format Reply</strong>
+              <span>Set / Edit Fields，把 AI output 整理成 WhatsApp bridge 格式。</span>
+            </div>
+            <div class="node green">
+              <strong>Send WhatsApp Reply</strong>
+              <span>HTTP Request 回打本地 bridge API。</span>
+            </div>
+            <div class="node">
+              <strong>Save AI Turn</strong>
+              <span>Data Store / Qdrant，保存近期 AI 回覆上下文。</span>
+            </div>
+            <div class="node yellow">
+              <strong>Error Reply</strong>
+              <span>Error Trigger / IF fallback，失敗時回簡短提示。</span>
+            </div>
+            <div class="swim-note">輸出區專管格式、回覆和錯誤。</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section compare">
+      <div class="panel">
+        <h2>舊版問題</h2>
+        <div class="bad-good">
+          <span class="pill warn">prepare memory 太大</span>
+          <span class="pill warn">Qdrant request 由 Code 手寫</span>
+          <span class="pill warn">Brave Search key 和 fetch 混在 Code 裡</span>
+          <span class="pill warn">AI prompt、記憶、profile、工具耦合</span>
+          <span class="pill warn">畫布線路斜穿，不容易看懂</span>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>新版目標</h2>
+        <div class="bad-good">
+          <span class="pill good">每區 4 至 6 個主要節點</span>
+          <span class="pill good">大部分邏輯用 Switch、If、Set、AI 節點表達</span>
+          <span class="pill good">Credential 交給 n8n 管理，不在 Code 中讀檔</span>
+          <span class="pill good">RAG、Web Search、Image 各自成工具支線</span>
+          <span class="pill good">Sticky Note 分區，像產品架構圖一樣清楚</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section panel">
+      <h2>三個可選方案</h2>
+      <div class="grid cols-3">
+        <article class="card">
+          <span class="tag">A · 最穩</span>
+          <h3>保守重排版</h3>
+          <p>保留現在的 HTTP Request 和少量 Code，只把大 Code node 拆小、加註解和分區。最快落地，但不像真正社區節點化。</p>
+          <ul>
+            <li>風險最低</li>
+            <li>能最快跑通</li>
+            <li>視覺改善有限</li>
+          </ul>
+        </article>
+        <article class="card">
+          <span class="tag">B · 推薦</span>
+          <h3>社區節點優先</h3>
+          <p>新建 workflow，優先使用 AI Agent、Chat Model、Qdrant、HTTP Request、Set、Switch、If。只保留少數無法避免的小 Code。</p>
+          <ul>
+            <li>好看且可維護</li>
+            <li>保留現有功能</li>
+            <li>需要確認 n8n 版本和可安裝節點</li>
+          </ul>
+        </article>
+        <article class="card">
+          <span class="tag">C · 最乾淨</span>
+          <h3>Agent 工具化重做</h3>
+          <p>把 RAG、Search、Image 都做成 AI Agent tools，主流程只剩入口、Agent、輸出。畫布最漂亮，但要接受更多 LangChain/n8n AI 節點約束。</p>
+          <ul>
+            <li>最像現代 n8n AI workflow</li>
+            <li>節點最少</li>
+            <li>調試成本較高</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="section panel">
+      <h2>建議落地順序</h2>
+      <div class="timeline">
+        <div class="step">
+          <div>
+            <h3>建立新 project / 新 workflow</h3>
+            <p>不動舊版，先做 `whatsapp bot community redesign`，保留回滾空間。</p>
+          </div>
+        </div>
+        <div class="step">
+          <div>
+            <h3>先跑通最小聊天主線</h3>
+            <p>Webhook → Normalize → Basic LLM Chain / AI Agent → Send WhatsApp Reply。</p>
+          </div>
+        </div>
+        <div class="step">
+          <div>
+            <h3>接入 Qdrant RAG</h3>
+            <p>先只做查詢，再做寫入，避免一開始就把 memory policy 做複雜。</p>
+          </div>
+        </div>
+        <div class="step">
+          <div>
+            <h3>加入 Brave Search 和 image 支線</h3>
+            <p>工具支線分開測，成功後再接回 Agent 或 LLM Chain。</p>
+          </div>
+        </div>
+        <div class="step">
+          <div>
+            <h3>補齊 profile、近期上下文和錯誤處理</h3>
+            <p>最後再把個人語氣、群組規則、最近對話和 fallback 做漂亮。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="footer">
+      <h2>我的推薦</h2>
+      <p>先採用方案 B。它能保持現在 bot 的能力，又能把畫布變成清楚的社區節點設計。等 B 跑穩，再把部分工具升級成方案 C 的 Agent tools。</p>
+    </section>
+  </main>
+</body>
+</html>

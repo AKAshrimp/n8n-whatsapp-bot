@@ -1,0 +1,666 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>n8n AI Agent Tools 重設計方案</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #070912;
+      --panel: rgba(18, 23, 38, 0.88);
+      --panel-2: rgba(26, 33, 52, 0.92);
+      --line: rgba(255, 255, 255, 0.12);
+      --text: #eef4ff;
+      --muted: #9ba8bf;
+      --orange: #ff784f;
+      --violet: #8b6cff;
+      --cyan: #48d8ff;
+      --green: #52dd8f;
+      --yellow: #ffd36a;
+      --red: #ff6685;
+      --shadow: 0 30px 90px rgba(0, 0, 0, 0.42);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", sans-serif;
+      background:
+        radial-gradient(circle at 16% 0%, rgba(255, 120, 79, 0.22), transparent 34rem),
+        radial-gradient(circle at 86% 12%, rgba(139, 108, 255, 0.28), transparent 30rem),
+        radial-gradient(circle at 50% 90%, rgba(72, 216, 255, 0.11), transparent 32rem),
+        linear-gradient(135deg, #070912 0%, #11182a 52%, #070912 100%);
+      color: var(--text);
+    }
+
+    .page {
+      width: min(1240px, calc(100vw - 40px));
+      margin: 0 auto;
+      padding: 54px 0 76px;
+    }
+
+    .hero,
+    .panel,
+    .option,
+    .lane,
+    .node,
+    .step {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+    }
+
+    .hero {
+      position: relative;
+      overflow: hidden;
+      min-height: 430px;
+      padding: 42px;
+      border-radius: 34px;
+      display: grid;
+      grid-template-columns: 1.08fr 0.92fr;
+      gap: 28px;
+      align-items: center;
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      right: -160px;
+      top: -160px;
+      width: 360px;
+      height: 360px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(255, 120, 79, 0.32), transparent 68%);
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 18px;
+      padding: 8px 12px;
+      border: 1px solid rgba(255, 120, 79, 0.32);
+      border-radius: 999px;
+      color: #ffd9cf;
+      background: rgba(255, 120, 79, 0.1);
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0;
+      line-height: 1.08;
+    }
+
+    h1 {
+      max-width: 760px;
+      font-size: clamp(38px, 6vw, 72px);
+      letter-spacing: -0.065em;
+    }
+
+    h2 {
+      margin-bottom: 18px;
+      font-size: 30px;
+      letter-spacing: -0.035em;
+    }
+
+    h3 {
+      font-size: 18px;
+      letter-spacing: -0.02em;
+    }
+
+    p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.72;
+    }
+
+    .lead {
+      max-width: 760px;
+      margin-top: 20px;
+      font-size: 18px;
+    }
+
+    .hero-map {
+      position: relative;
+      z-index: 1;
+      min-height: 340px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 30px;
+      background:
+        linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+        rgba(255, 255, 255, 0.04);
+      background-size: 28px 28px;
+      padding: 22px;
+    }
+
+    .agent-core {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 180px;
+      height: 180px;
+      border-radius: 42px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      background: linear-gradient(135deg, rgba(255, 120, 79, 0.98), rgba(139, 108, 255, 0.98));
+      box-shadow: 0 26px 70px rgba(139, 108, 255, 0.34);
+      font-weight: 950;
+      letter-spacing: -0.03em;
+    }
+
+    .tool-chip {
+      position: absolute;
+      min-width: 132px;
+      padding: 12px 14px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 18px;
+      background: rgba(13, 17, 28, 0.86);
+      color: #dfe8ff;
+      font-size: 13px;
+      font-weight: 800;
+      text-align: center;
+    }
+
+    .tool-chip span {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .t1 { left: 24px; top: 32px; }
+    .t2 { right: 24px; top: 32px; }
+    .t3 { left: 18px; bottom: 42px; }
+    .t4 { right: 18px; bottom: 42px; }
+    .t5 { left: 50%; top: 18px; transform: translateX(-50%); }
+    .t6 { left: 50%; bottom: 16px; transform: translateX(-50%); }
+
+    .section {
+      margin-top: 30px;
+    }
+
+    .panel {
+      padding: 30px;
+      border-radius: 30px;
+    }
+
+    .grid {
+      display: grid;
+      gap: 18px;
+    }
+
+    .cols-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .cols-2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .option {
+      padding: 23px;
+      border-radius: 24px;
+      background: var(--panel-2);
+    }
+
+    .option.recommended {
+      border-color: rgba(82, 221, 143, 0.44);
+      box-shadow: 0 30px 90px rgba(82, 221, 143, 0.08);
+    }
+
+    .tag {
+      display: inline-flex;
+      margin-bottom: 14px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(72, 216, 255, 0.12);
+      color: #bef2ff;
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .tag.good {
+      background: rgba(82, 221, 143, 0.12);
+      color: #c9ffdf;
+    }
+
+    ul {
+      margin: 14px 0 0;
+      padding-left: 18px;
+      color: var(--muted);
+      line-height: 1.72;
+    }
+
+    li + li {
+      margin-top: 6px;
+    }
+
+    .flow-wrap {
+      overflow-x: auto;
+      padding-bottom: 8px;
+    }
+
+    .flow {
+      min-width: 1120px;
+      display: grid;
+      grid-template-columns: 165px 250px 250px 250px 165px;
+      gap: 16px;
+      align-items: stretch;
+    }
+
+    .lane {
+      min-height: 720px;
+      padding: 18px;
+      border-radius: 26px;
+      background: rgba(255, 255, 255, 0.04);
+      box-shadow: none;
+    }
+
+    .lane-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+      font-weight: 950;
+      color: #e7efff;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--orange);
+      box-shadow: 0 0 0 6px rgba(255, 120, 79, 0.13);
+    }
+
+    .node {
+      margin-bottom: 13px;
+      padding: 15px;
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.035));
+      box-shadow: none;
+    }
+
+    .node strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 14px;
+    }
+
+    .node span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.48;
+    }
+
+    .node.agent {
+      border-color: rgba(255, 120, 79, 0.48);
+      background: linear-gradient(135deg, rgba(255, 120, 79, 0.18), rgba(139, 108, 255, 0.13));
+    }
+
+    .node.tool {
+      border-color: rgba(72, 216, 255, 0.38);
+    }
+
+    .node.memory {
+      border-color: rgba(139, 108, 255, 0.44);
+    }
+
+    .node.output {
+      border-color: rgba(82, 221, 143, 0.42);
+    }
+
+    .note {
+      margin-top: 14px;
+      padding: 14px;
+      border: 1px dashed rgba(255, 255, 255, 0.18);
+      border-radius: 16px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+      background: rgba(0, 0, 0, 0.16);
+    }
+
+    .matrix {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr 1fr;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      overflow: hidden;
+    }
+
+    .matrix > div {
+      padding: 16px;
+      border-right: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .matrix > div:nth-child(3n) {
+      border-right: 0;
+    }
+
+    .matrix .head {
+      color: var(--text);
+      font-weight: 950;
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .timeline {
+      display: grid;
+      gap: 14px;
+      counter-reset: step;
+    }
+
+    .step {
+      display: grid;
+      grid-template-columns: 48px 1fr;
+      gap: 16px;
+      align-items: start;
+      padding: 16px;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.04);
+      box-shadow: none;
+    }
+
+    .step::before {
+      counter-increment: step;
+      content: counter(step);
+      display: grid;
+      place-items: center;
+      width: 40px;
+      height: 40px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, var(--orange), var(--violet));
+      color: #fff;
+      font-weight: 950;
+    }
+
+    .callout {
+      margin-top: 22px;
+      padding: 20px;
+      border: 1px solid rgba(82, 221, 143, 0.36);
+      border-radius: 22px;
+      background: rgba(82, 221, 143, 0.09);
+    }
+
+    .small {
+      font-size: 13px;
+    }
+
+    @media (max-width: 980px) {
+      .hero,
+      .cols-2,
+      .cols-3 {
+        grid-template-columns: 1fr;
+      }
+
+      .hero-map {
+        min-height: 420px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <div>
+        <div class="eyebrow">AI Agent Tools Redesign · 全功能保留 · 少量必要 Code</div>
+        <h1>新版 n8n 變成一個 Agent，記憶、搜尋、圖片都是它的工具</h1>
+        <p class="lead">這版不再把所有邏輯塞進大型 Code node。主線只保留入口、路由、AI Agent、輸出，RAG 記憶、成員 profile、Brave Search、圖片生成/編輯、近期上下文都變成可插拔工具。</p>
+      </div>
+      <div class="hero-map" aria-label="AI Agent 工具化示意圖">
+        <div class="tool-chip t1">Qdrant RAG<span>search + write memory</span></div>
+        <div class="tool-chip t2">Brave Search<span>fresh web context</span></div>
+        <div class="tool-chip t3">Profile Lookup<span>member + group style</span></div>
+        <div class="tool-chip t4">Image Tool<span>generate + edit</span></div>
+        <div class="tool-chip t5">Recent Context<span>last turns</span></div>
+        <div class="tool-chip t6">Command Tools<span>memory / record / admin</span></div>
+        <div class="agent-core">WhatsApp<br>AI Agent</div>
+      </div>
+    </section>
+
+    <section class="section panel">
+      <h2>三個 Agent 工具化方案</h2>
+      <div class="grid cols-3">
+        <article class="option">
+          <span class="tag">A · Agent 外掛工具</span>
+          <h3>工具都在 Agent 外面跑</h3>
+          <p>先用 Switch 判斷要不要查 RAG、搜尋、圖片，整理好 context 後再丟給 Agent。</p>
+          <ul>
+            <li>最容易 debug</li>
+            <li>節點會比較多</li>
+            <li>Agent 自主性較低</li>
+          </ul>
+        </article>
+        <article class="option recommended">
+          <span class="tag good">B · 推薦</span>
+          <h3>Hybrid Agent Tools</h3>
+          <p>穩定工具放外面預處理，RAG 搜尋、Brave Search、圖片等做成 Agent tools。主 Agent 可以自主決定何時用工具。</p>
+          <ul>
+            <li>畫布乾淨，仍可控</li>
+            <li>保留全部功能</li>
+            <li>少量 Code 只做格式兼容</li>
+          </ul>
+        </article>
+        <article class="option">
+          <span class="tag">C · Full Agent</span>
+          <h3>所有能力都變成工具</h3>
+          <p>入口之後幾乎直接進 Agent，所有記憶、搜尋、圖片、profile 都由 Agent tool 調用。</p>
+          <ul>
+            <li>最漂亮、最少節點</li>
+            <li>測試和排錯較難</li>
+            <li>對 n8n AI 節點能力要求最高</li>
+          </ul>
+        </article>
+      </div>
+      <div class="callout">
+        <h3>建議採用 B</h3>
+        <p>因為你要「全部保留」而且可以接受少量必要 Code，Hybrid Agent Tools 最適合。它看起來會像現代 AI Agent workflow，但不會犧牲穩定性。</p>
+      </div>
+    </section>
+
+    <section class="section panel">
+      <h2>新版 workflow 畫布設計</h2>
+      <p>畫布分成 5 區：入口路由、Agent Core、Agent Tools、資料/記憶、輸出與錯誤。每個區塊用 Sticky Note 固定邊界，主線從左到右，工具從下方接入 Agent。</p>
+      <div class="flow-wrap section">
+        <div class="flow">
+          <div class="lane">
+            <div class="lane-title"><span class="dot"></span>入口</div>
+            <div class="node output">
+              <strong>WhatsApp Webhook</strong>
+              <span>接收 bridge 傳來的群訊息、私訊、圖片命令。</span>
+            </div>
+            <div class="node">
+              <strong>Normalize Payload</strong>
+              <span>Set / Edit Fields。整理 sender、group、text、messageId、timestamp。</span>
+            </div>
+            <div class="node">
+              <strong>Intent Router</strong>
+              <span>Switch。chat、record、memory、image、admin、health check。</span>
+            </div>
+            <div class="note">入口區只做格式標準化，不做 AI 判斷。</div>
+          </div>
+
+          <div class="lane">
+            <div class="lane-title"><span class="dot"></span>Agent Core</div>
+            <div class="node agent">
+              <strong>DeepSeek Chat Model</strong>
+              <span>OpenAI-compatible Chat Model 或 DeepSeek 社區節點。</span>
+            </div>
+            <div class="node agent">
+              <strong>WhatsApp AI Agent</strong>
+              <span>主決策節點。接收系統人格、輸入訊息、可用工具清單。</span>
+            </div>
+            <div class="node agent">
+              <strong>Agent Memory Instructions</strong>
+              <span>Prompt Template / Set。規則明確：可查記憶，不洩露原始歷史。</span>
+            </div>
+            <div class="node">
+              <strong>Structured Output Parser</strong>
+              <span>把 Agent 回覆整理為 text、action、imagePayload、memoryAction。</span>
+            </div>
+            <div class="note">大型 `prepare memory` 的 prompt 組裝會拆到 Agent prompt、tools 和 Set 節點。</div>
+          </div>
+
+          <div class="lane">
+            <div class="lane-title"><span class="dot"></span>Agent Tools</div>
+            <div class="node tool">
+              <strong>Tool: Search Memory</strong>
+              <span>Qdrant Vector Store，用現有 collection/schema 查相關對話。</span>
+            </div>
+            <div class="node tool">
+              <strong>Tool: Write Memory</strong>
+              <span>保存 record 指令和重要對話摘要，沿用現有 Qdrant 資料。</span>
+            </div>
+            <div class="node tool">
+              <strong>Tool: Brave Search</strong>
+              <span>HTTP Request + n8n credential，替代 Code fetch。</span>
+            </div>
+            <div class="node tool">
+              <strong>Tool: Image Generate/Edit</strong>
+              <span>圖片支線工具，回傳圖片 URL / binary payload。</span>
+            </div>
+            <div class="node tool">
+              <strong>Tool: Memory Status</strong>
+              <span>回答記憶狀態、collection 檢查、簡單 admin 查詢。</span>
+            </div>
+            <div class="note">工具區是新版的核心視覺亮點。</div>
+          </div>
+
+          <div class="lane">
+            <div class="lane-title"><span class="dot"></span>資料/記憶</div>
+            <div class="node memory">
+              <strong>Existing Qdrant Collection</strong>
+              <span>不重建，不刪資料，先兼容現有 collection。</span>
+            </div>
+            <div class="node memory">
+              <strong>Member Profile Retriever</strong>
+              <span>查 sender profile、group profile、常見稱呼。</span>
+            </div>
+            <div class="node memory">
+              <strong>Recent Context Store</strong>
+              <span>保留近幾輪 AI turn，可用 Data Store 或 Qdrant metadata。</span>
+            </div>
+            <div class="node memory">
+              <strong>Compatibility Formatter</strong>
+              <span>少量 Code，只處理現有資料 schema 差異。</span>
+            </div>
+            <div class="note">資料區明確標示「沿用現有 Qdrant」。</div>
+          </div>
+
+          <div class="lane">
+            <div class="lane-title"><span class="dot"></span>輸出</div>
+            <div class="node output">
+              <strong>Format WhatsApp Reply</strong>
+              <span>Set / Edit Fields。文字、圖片、引用、錯誤訊息格式。</span>
+            </div>
+            <div class="node output">
+              <strong>Send to Bridge</strong>
+              <span>HTTP Request 回打本地 WhatsApp bridge API。</span>
+            </div>
+            <div class="node output">
+              <strong>Save AI Turn</strong>
+              <span>保存 AI 回覆摘要，提供近期上下文。</span>
+            </div>
+            <div class="node">
+              <strong>Error Fallback</strong>
+              <span>任一工具失敗時，回覆簡短可理解錯誤。</span>
+            </div>
+            <div class="note">輸出區統一回覆，不讓工具節點直接散落回 WhatsApp。</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section panel">
+      <h2>大 Code node 拆解方式</h2>
+      <div class="matrix">
+        <div class="head">舊節點</div>
+        <div class="head">新版替代</div>
+        <div class="head">是否保留 Code</div>
+        <div>prepare memory</div>
+        <div>Prompt Template + Profile Retriever + Search Memory Tool + Recent Context Store</div>
+        <div>只保留 schema formatter</div>
+        <div>Brave Search Code</div>
+        <div>HTTP Request + Credential + Agent Tool 描述</div>
+        <div>不保留</div>
+        <div>build qdrant search / record point</div>
+        <div>Qdrant Vector Store / HTTP Request template / 社區 Qdrant node</div>
+        <div>必要時小型兼容</div>
+        <div>parse web search decision</div>
+        <div>Agent tool choice + Structured Output Parser</div>
+        <div>不保留</div>
+        <div>prepare image binary</div>
+        <div>圖片工具輸出 formatter</div>
+        <div>可能保留小型 binary formatter</div>
+        <div>save memory</div>
+        <div>Data Store / Qdrant write tool / Set</div>
+        <div>盡量不保留</div>
+      </div>
+    </section>
+
+    <section class="section panel">
+      <h2>實作順序草案</h2>
+      <div class="timeline">
+        <div class="step">
+          <div>
+            <h3>建立全新 workflow</h3>
+            <p>新命名為 `whatsapp bot AI Agent tools`，舊版只保留作備份。</p>
+          </div>
+        </div>
+        <div class="step">
+          <div>
+            <h3>先接通 Agent 主線</h3>
+            <p>Webhook → Normalize → DeepSeek Chat Model → WhatsApp AI Agent → Send Reply。</p>
+          </div>
+        </div>
+        <div class="step">
+          <div>
+            <h3>加入現有 Qdrant 查詢工具</h3>
+            <p>先只讀不寫，確認現有 collection/schema 可以被新版正確理解。</p>
+          </div>
+        </div>
+        <div class="step">
+          <div>
+            <h3>加入寫記憶、profile、近期上下文</h3>
+            <p>拆成三個工具，不再混在單一 prepare memory code 中。</p>
+          </div>
+        </div>
+        <div class="step">
+          <div>
+            <h3>加入 Brave Search 和圖片工具</h3>
+            <p>工具獨立測試，再接入 Agent。失敗時走 fallback。</p>
+          </div>
+        </div>
+        <div class="step">
+          <div>
+            <h3>整理畫布與驗證</h3>
+            <p>Sticky Notes 分區、節點命名統一、測試每條 command route。</p>
+          </div>
+        </div>
+      </div>
+      <div class="callout">
+        <h3>需要你確認的一句話</h3>
+        <p>如果這個方向 OK，我下一步會把它寫成正式 spec，然後再做 implementation plan。正式開始改 workflow 前，我會列出會變更的 n8n JSON 路徑和節點名稱。</p>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
