@@ -666,11 +666,6 @@
               "node": "Tool: Search Memory",
               "type": "main",
               "index": 0
-            },
-            {
-              "node": "Tool: Brave Search",
-              "type": "main",
-              "index": 0
             }
           ],
           [
@@ -736,7 +731,7 @@
         "main": [
           [
             {
-              "node": "Compatibility Formatter",
+              "node": "Tool: Brave Search",
               "type": "main",
               "index": 0
             }

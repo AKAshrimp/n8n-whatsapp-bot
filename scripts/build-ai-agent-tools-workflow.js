@@ -805,7 +805,7 @@ function buildConnections() {
     },
     "Intent Router": {
       main: [
-        [connection("Tool: Search Memory"), connection("Tool: Brave Search")],
+        [connection("Tool: Search Memory")],
         [connection("Tool: Write Memory")],
         [connection("Tool: Memory Status")],
         [connection("Tool: Image Generate/Edit")],
@@ -820,7 +820,7 @@ function buildConnections() {
       main: [[connection("Recent Context Store")]],
     },
     "Recent Context Store": {
-      main: [[connection("Compatibility Formatter")]],
+      main: [[connection("Tool: Brave Search")]],
     },
     "Tool: Brave Search": {
       main: [[connection("Tool: Format Brave Results")]],

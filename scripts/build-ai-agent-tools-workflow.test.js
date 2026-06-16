@@ -72,6 +72,19 @@ function routeReachesTargetWithoutNode(workflow, fromNode, outputIndex, targetNo
   return false;
 }
 
+function assertSingleMainConnectionChain(workflow, chain) {
+  for (let index = 0; index < chain.length - 1; index += 1) {
+    const fromNode = chain[index];
+    const toNode = chain[index + 1];
+
+    assert.deepEqual(
+      connectionTargetNames(workflow, fromNode, 0),
+      [toNode],
+      `${fromNode} should route only to ${toNode}`
+    );
+  }
+}
+
 test("buildAiAgentToolsWorkflow creates a new inactive workflow without mutating source", () => {
   const source = loadCurrentWorkflow();
   const sourceSnapshot = JSON.stringify(source);
@@ -155,10 +168,7 @@ test("generated workflow has agent-centered connections", () => {
 test("intent router fans out to the expected tool outputs", () => {
   const workflow = buildAiAgentToolsWorkflow(loadCurrentWorkflow());
 
-  assert.deepEqual(connectionTargetNames(workflow, "Intent Router", 0), [
-    "Tool: Search Memory",
-    "Tool: Brave Search",
-  ]);
+  assert.deepEqual(connectionTargetNames(workflow, "Intent Router", 0), ["Tool: Search Memory"]);
   assert.deepEqual(connectionTargetNames(workflow, "Intent Router", 1), ["Tool: Write Memory"]);
   assert.deepEqual(connectionTargetNames(workflow, "Intent Router", 2), ["Tool: Memory Status"]);
   assert.deepEqual(connectionTargetNames(workflow, "Intent Router", 3), [
@@ -173,15 +183,18 @@ test("intent router fans out to the expected tool outputs", () => {
 test("chat route enters Agent Context Builder only after memory instructions", () => {
   const workflow = buildAiAgentToolsWorkflow(loadCurrentWorkflow());
 
-  assert.deepEqual(connectionTargetNames(workflow, "Tool: Brave Search", 0), [
+  assertSingleMainConnectionChain(workflow, [
+    "Intent Router",
+    "Tool: Search Memory",
+    "Member Profile Retriever",
+    "Recent Context Store",
+    "Tool: Brave Search",
     "Tool: Format Brave Results",
-  ]);
-  assert.deepEqual(connectionTargetNames(workflow, "Tool: Format Brave Results", 0), [
     "Compatibility Formatter",
-  ]);
-  assert.deepEqual(directMainInputs(workflow, "Agent Context Builder"), [
     "Agent Memory Instructions",
+    "Agent Context Builder",
   ]);
+  assert.deepEqual(directMainInputs(workflow, "Agent Context Builder"), ["Agent Memory Instructions"]);
 });
 
 test("non-chat command routes reach reply formatter without entering agent context", () => {
