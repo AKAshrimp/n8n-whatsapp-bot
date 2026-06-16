@@ -170,7 +170,7 @@ test("intent router fans out to the expected tool outputs", () => {
 
   assert.deepEqual(connectionTargetNames(workflow, "Intent Router", 0), ["Tool: Search Memory"]);
   assert.deepEqual(connectionTargetNames(workflow, "Intent Router", 1), [
-    "Format Memory Write Point",
+    "Tool: Embed Memory Record",
   ]);
   assert.deepEqual(connectionTargetNames(workflow, "Intent Router", 2), ["Tool: Memory Status"]);
   assert.deepEqual(connectionTargetNames(workflow, "Intent Router", 3), [
@@ -190,6 +190,7 @@ test("chat route enters Agent Context Builder only after memory instructions", (
     "Tool: Search Memory",
     "Member Profile Retriever",
     "Recent Context Store",
+    "Tool: Web Search Router",
     "Tool: Brave Search",
     "Tool: Format Brave Results",
     "Compatibility Formatter",
@@ -197,6 +198,10 @@ test("chat route enters Agent Context Builder only after memory instructions", (
     "Agent Context Builder",
   ]);
   assert.deepEqual(directMainInputs(workflow, "Agent Context Builder"), ["Agent Memory Instructions"]);
+  assert.deepEqual(connectionTargetNames(workflow, "Tool: Web Search Router", 1), [
+    "Compatibility Formatter",
+  ]);
+  assert.deepEqual(directMainInputs(workflow, "Tool: Brave Search"), ["Tool: Web Search Router"]);
 });
 
 test("DeepSeek chat model is configured with credential reference and no obvious secret literals", () => {
@@ -204,15 +209,12 @@ test("DeepSeek chat model is configured with credential reference and no obvious
   const chatModel = node(workflow, "DeepSeek Chat Model");
   const serializedWorkflow = JSON.stringify(workflow);
   const serializedModel = JSON.stringify(chatModel);
-  const hasCredentialReference =
-    chatModel.credentials && Object.keys(chatModel.credentials).length > 0;
-  const hasEnvBasedAuthField = /\$env\.(?:DEEPSEEK|OPENAI)[A-Z0-9_]*API/i.test(serializedModel);
 
   assert.ok(chatModel, "missing DeepSeek Chat Model node");
-  assert.ok(
-    hasCredentialReference || hasEnvBasedAuthField,
-    "DeepSeek Chat Model should use n8n credential references or env-based auth"
-  );
+  assert.equal(chatModel.credentials?.openAiApi?.id, "REPLACE_WITH_DEEPSEEK_OPENAI_CREDENTIAL");
+  assert.equal(chatModel.credentials?.openAiApi?.name, "DeepSeek OpenAI-compatible credential");
+  assert.equal(chatModel.credentials?.httpHeaderAuth, undefined);
+  assert.doesNotMatch(serializedModel, /httpHeaderAuth/);
   assert.doesNotMatch(serializedWorkflow, /sk-[A-Za-z0-9_-]{8,}/);
   assert.doesNotMatch(serializedWorkflow, /Bearer\s+[A-Za-z0-9._-]{8,}/i);
 });
@@ -220,13 +222,20 @@ test("DeepSeek chat model is configured with credential reference and no obvious
 test("record route formats a structured memory write point before writing to Qdrant", () => {
   const workflow = buildAiAgentToolsWorkflow(loadCurrentWorkflow());
   const formatter = node(workflow, "Format Memory Write Point");
+  const embedMemoryRecord = node(workflow, "Tool: Embed Memory Record");
   const writeMemory = node(workflow, "Tool: Write Memory");
 
   assertSingleMainConnectionChain(workflow, [
+    "Tool: Embed Memory Record",
     "Format Memory Write Point",
     "Tool: Write Memory",
     "Format Memory Write Result",
     "Format WhatsApp Reply",
+  ]);
+  assert.ok(embedMemoryRecord, "missing Tool: Embed Memory Record node");
+  assert.deepEqual(connectionTargetNames(workflow, "Intent Router", 1), ["Tool: Embed Memory Record"]);
+  assert.deepEqual(directMainInputs(workflow, "Format Memory Write Point"), [
+    "Tool: Embed Memory Record",
   ]);
   assert.deepEqual(directMainInputs(workflow, "Tool: Write Memory"), [
     "Format Memory Write Point",
@@ -234,12 +243,49 @@ test("record route formats a structured memory write point before writing to Qdr
   assert.equal(writeMemory.parameters.jsonBody.includes("{ points: [] }"), false);
   assert.match(writeMemory.parameters.jsonBody, /\$json/);
 
-  for (const fragment of ["points", "payload", "whatsapp_message", "groupId", "text"]) {
+  for (const fragment of [
+    "points",
+    "payload",
+    "whatsapp_message",
+    "groupId",
+    "text",
+    "Tool: Embed Memory Record",
+  ]) {
     assert.ok(
       formatter.parameters.jsCode.includes(fragment),
       `Format Memory Write Point should include ${fragment}`
     );
   }
+  assert.doesNotMatch(formatter.parameters.jsCode, /input\.embedding\s*\|\|\s*\[\]/);
+  assert.doesNotMatch(formatter.parameters.jsCode, /\{\s*points:\s*\[\s*\]\s*\}/);
+});
+
+test("record formatter guards against missing embeddings", () => {
+  const workflow = buildAiAgentToolsWorkflow(loadCurrentWorkflow());
+  const formatter = node(workflow, "Format Memory Write Point");
+
+  assert.match(formatter.parameters.jsCode, /throw new Error/i);
+  assert.match(formatter.parameters.jsCode, /Embedding missing/i);
+});
+
+test("web search routing only sends fresh queries to Brave Search", () => {
+  const workflow = buildAiAgentToolsWorkflow(loadCurrentWorkflow());
+  const router = node(workflow, "Tool: Web Search Router");
+
+  assert.equal(router.type, "n8n-nodes-base.if");
+  assert.notDeepEqual(connectionTargetNames(workflow, "Recent Context Store", 0), [
+    "Tool: Brave Search",
+  ]);
+  assert.deepEqual(connectionTargetNames(workflow, "Recent Context Store", 0), [
+    "Tool: Web Search Router",
+  ]);
+  assert.deepEqual(connectionTargetNames(workflow, "Tool: Web Search Router", 0), [
+    "Tool: Brave Search",
+  ]);
+  assert.deepEqual(connectionTargetNames(workflow, "Tool: Web Search Router", 1), [
+    "Compatibility Formatter",
+  ]);
+  assert.deepEqual(directMainInputs(workflow, "Tool: Brave Search"), ["Tool: Web Search Router"]);
 });
 
 test("non-chat command routes reach reply formatter without entering agent context", () => {

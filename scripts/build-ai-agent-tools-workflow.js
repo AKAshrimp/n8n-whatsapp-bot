@@ -21,9 +21,11 @@ const expectedNodeNames = Object.freeze([
   "WhatsApp AI Agent",
   "Structured Reply Parser",
   "Tool: Search Memory",
+  "Tool: Embed Memory Record",
   "Format Memory Write Point",
   "Tool: Write Memory",
   "Format Memory Write Result",
+  "Tool: Web Search Router",
   "Tool: Brave Search",
   "Tool: Format Brave Results",
   "Tool: Image Generate/Edit",
@@ -222,6 +224,78 @@ return $input.all().map((item) => ({
 }));`;
 }
 
+function buildEmbedMemoryRecordParameters(sourceWorkflow) {
+  const sourceEmbedRecord = findSourceNode(sourceWorkflow, "qwen embed record");
+
+  if (sourceEmbedRecord?.parameters) {
+    return clone(sourceEmbedRecord.parameters);
+  }
+
+  return {
+    method: "POST",
+    url: "={{ $env.EMBEDDING_URL }}",
+    sendHeaders: true,
+    headerParameters: {
+      parameters: [
+        {
+          name: "Authorization",
+          value: '={{ "Bearer " + $env.EMBEDDING_API_KEY }}',
+        },
+        {
+          name: "Content-Type",
+          value: "application/json",
+        },
+      ],
+    },
+    sendBody: true,
+    specifyBody: "json",
+    jsonBody: '={\n  "model": "{{ $env.EMBEDDING_MODEL }}",\n  "input": "{{ $json.text }}"\n}',
+    options: {},
+  };
+}
+
+function buildEmbedMemoryRecordExtra(sourceWorkflow) {
+  const sourceEmbedRecord = findSourceNode(sourceWorkflow, "qwen embed record");
+  const safeExtra = {
+    typeVersion: sourceEmbedRecord?.typeVersion ?? 4.4,
+    onError: "continueRegularOutput",
+  };
+
+  if (sourceEmbedRecord?.credentials && Object.keys(sourceEmbedRecord.credentials).length > 0) {
+    safeExtra.credentials = clone(sourceEmbedRecord.credentials);
+  }
+
+  return safeExtra;
+}
+
+function buildWebSearchRouterParameters() {
+  return {
+    conditions: {
+      options: {
+        caseSensitive: false,
+        leftValue: "",
+        typeValidation: "strict",
+        version: 3,
+      },
+      conditions: [
+        {
+          id: "ai-agent-tools-web-search-trigger",
+          leftValue: "={{ $json.text || '' }}",
+          rightValue:
+            "(current|fresh|news|latest|recent|api|version|price|status|today|now|update|updates|release|pricing|cost|stock|weather)",
+          operator: {
+            type: "string",
+            operation: "regex",
+            name: "filter.operator.regex",
+          },
+        },
+      ],
+      combinator: "and",
+    },
+    options: {},
+  };
+}
+
 function buildStructuredReplyParserCode() {
   return String.raw`const response = $json.output || $json.text || $json.message || "";
 let parsed = null;
@@ -251,22 +325,44 @@ return [
 
 function buildFormatMemoryWritePointCode() {
   return String.raw`const input = $json || {};
-const groupId = input.groupId || "";
-const userId = input.userId || "";
-const userName = input.userName || "";
-const text = String(input.text || input.message || "").trim();
-const timestamp = input.timestamp || Math.floor(Date.now() / 1000);
-const id = input.messageId || [groupId, userId, timestamp].join(":");
+let embeddingResponse = {};
+let original = {};
+
+try {
+  embeddingResponse = $("Tool: Embed Memory Record").first().json || {};
+} catch (error) {
+  embeddingResponse = input;
+}
+
+try {
+  original = $("Normalize Payload").first().json || {};
+} catch (error) {
+  original = input;
+}
+
+const vector = embeddingResponse.data?.[0]?.embedding || embeddingResponse.embedding || input.data?.[0]?.embedding;
+
+if (!Array.isArray(vector) || vector.length === 0) {
+  throw new Error("Embedding missing for memory write; refusing to upsert an empty vector.");
+}
+
+const groupId = original.groupId || input.groupId || "";
+const userId = original.userId || input.userId || "";
+const userName = original.userName || input.userName || "";
+const text = String(original.text || input.text || input.message || "").trim();
+const timestamp = original.timestamp || input.timestamp || Math.floor(Date.now() / 1000);
+const id = original.messageId || input.messageId || [groupId, userId, timestamp].join(":");
 
 return [
   {
     json: {
+      ...original,
       ...input,
       memoryPoint: {
         points: [
           {
             id,
-            vector: input.embedding || [],
+            vector,
             payload: {
               type: "whatsapp_message",
               groupId,
@@ -464,14 +560,15 @@ function findSourceNode(sourceWorkflow, name) {
 }
 
 function buildDeepSeekChatModelExtra(sourceWorkflow) {
-  const sourceDeepseek = findSourceNode(sourceWorkflow, "Deepseek");
-  const safeExtra = { typeVersion: 1.2 };
-
-  if (sourceDeepseek?.credentials && Object.keys(sourceDeepseek.credentials).length > 0) {
-    safeExtra.credentials = clone(sourceDeepseek.credentials);
-  }
-
-  return safeExtra;
+  return {
+    typeVersion: 1.2,
+    credentials: {
+      openAiApi: {
+        id: "REPLACE_WITH_DEEPSEEK_OPENAI_CREDENTIAL",
+        name: "DeepSeek OpenAI-compatible credential",
+      },
+    },
+  };
 }
 
 function buildNodes(sourceWorkflow) {
@@ -622,6 +719,13 @@ function buildNodes(sourceWorkflow) {
       { typeVersion: 4.4, onError: "continueRegularOutput" }
     ),
     node(
+      "Tool: Embed Memory Record",
+      "n8n-nodes-base.httpRequest",
+      [-280, 460],
+      buildEmbedMemoryRecordParameters(sourceWorkflow),
+      buildEmbedMemoryRecordExtra(sourceWorkflow)
+    ),
+    node(
       "Format Memory Write Point",
       "n8n-nodes-base.code",
       [-60, 460],
@@ -648,6 +752,13 @@ function buildNodes(sourceWorkflow) {
       [420, 460],
       { jsCode: buildMemoryWriteResultCode() },
       { typeVersion: 2 }
+    ),
+    node(
+      "Tool: Web Search Router",
+      "n8n-nodes-base.if",
+      [-100, 620],
+      buildWebSearchRouterParameters(),
+      { typeVersion: 2.3 }
     ),
     node(
       "Tool: Brave Search",
@@ -775,7 +886,7 @@ function buildNodes(sourceWorkflow) {
     node(
       "Compatibility Formatter",
       "n8n-nodes-base.code",
-      [-100, 620],
+      [420, 620],
       { jsCode: buildCompatibilityFormatterCode() },
       { typeVersion: 2 }
     ),
@@ -863,7 +974,7 @@ function buildConnections() {
     "Intent Router": {
       main: [
         [connection("Tool: Search Memory")],
-        [connection("Format Memory Write Point")],
+        [connection("Tool: Embed Memory Record")],
         [connection("Tool: Memory Status")],
         [connection("Tool: Image Generate/Edit")],
         [connection("Existing Qdrant Collection")],
@@ -877,7 +988,10 @@ function buildConnections() {
       main: [[connection("Recent Context Store")]],
     },
     "Recent Context Store": {
-      main: [[connection("Tool: Brave Search")]],
+      main: [[connection("Tool: Web Search Router")]],
+    },
+    "Tool: Web Search Router": {
+      main: [[connection("Tool: Brave Search")], [connection("Compatibility Formatter")]],
     },
     "Tool: Brave Search": {
       main: [[connection("Tool: Format Brave Results")]],
@@ -887,6 +1001,9 @@ function buildConnections() {
     },
     "Compatibility Formatter": {
       main: [[connection("Agent Memory Instructions")]],
+    },
+    "Tool: Embed Memory Record": {
+      main: [[connection("Format Memory Write Point")]],
     },
     "Format Memory Write Point": {
       main: [[connection("Tool: Write Memory")]],

@@ -298,9 +298,9 @@
         "id": "deepseek-chat-model",
         "name": "DeepSeek Chat Model",
         "credentials": {
-          "httpHeaderAuth": {
-            "id": "ACXsfX5WhExX9qyc",
-            "name": "Header Auth account"
+          "openAiApi": {
+            "id": "REPLACE_WITH_DEEPSEEK_OPENAI_CREDENTIAL",
+            "name": "DeepSeek OpenAI-compatible credential"
           }
         }
       },
@@ -355,7 +355,39 @@
       },
       {
         "parameters": {
-          "jsCode": "const input = $json || {};\nconst groupId = input.groupId || \"\";\nconst userId = input.userId || \"\";\nconst userName = input.userName || \"\";\nconst text = String(input.text || input.message || \"\").trim();\nconst timestamp = input.timestamp || Math.floor(Date.now() / 1000);\nconst id = input.messageId || [groupId, userId, timestamp].join(\":\");\n\nreturn [\n  {\n    json: {\n      ...input,\n      memoryPoint: {\n        points: [\n          {\n            id,\n            vector: input.embedding || [],\n            payload: {\n              type: \"whatsapp_message\",\n              groupId,\n              userId,\n              userName,\n              text,\n              timestamp,\n            },\n          },\n        ],\n      },\n    },\n  },\n];"
+          "method": "POST",
+          "url": "={{ $env.EMBEDDING_URL }}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "={{ \"Bearer \" + $env.EMBEDDING_API_KEY }}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={\n  \"model\": \"{{ $env.EMBEDDING_MODEL }}\",\n  \"input\": \"{{ $json.text }}\"\n}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          -280,
+          460
+        ],
+        "id": "tool-embed-memory-record",
+        "name": "Tool: Embed Memory Record",
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "const input = $json || {};\nlet embeddingResponse = {};\nlet original = {};\n\ntry {\n  embeddingResponse = $(\"Tool: Embed Memory Record\").first().json || {};\n} catch (error) {\n  embeddingResponse = input;\n}\n\ntry {\n  original = $(\"Normalize Payload\").first().json || {};\n} catch (error) {\n  original = input;\n}\n\nconst vector = embeddingResponse.data?.[0]?.embedding || embeddingResponse.embedding || input.data?.[0]?.embedding;\n\nif (!Array.isArray(vector) || vector.length === 0) {\n  throw new Error(\"Embedding missing for memory write; refusing to upsert an empty vector.\");\n}\n\nconst groupId = original.groupId || input.groupId || \"\";\nconst userId = original.userId || input.userId || \"\";\nconst userName = original.userName || input.userName || \"\";\nconst text = String(original.text || input.text || input.message || \"\").trim();\nconst timestamp = original.timestamp || input.timestamp || Math.floor(Date.now() / 1000);\nconst id = original.messageId || input.messageId || [groupId, userId, timestamp].join(\":\");\n\nreturn [\n  {\n    json: {\n      ...original,\n      ...input,\n      memoryPoint: {\n        points: [\n          {\n            id,\n            vector,\n            payload: {\n              type: \"whatsapp_message\",\n              groupId,\n              userId,\n              userName,\n              text,\n              timestamp,\n            },\n          },\n        ],\n      },\n    },\n  },\n];"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -397,6 +429,40 @@
         ],
         "id": "format-memory-write-result",
         "name": "Format Memory Write Result"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": false,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "id": "ai-agent-tools-web-search-trigger",
+                "leftValue": "={{ $json.text || '' }}",
+                "rightValue": "(current|fresh|news|latest|recent|api|version|price|status|today|now|update|updates|release|pricing|cost|stock|weather)",
+                "operator": {
+                  "type": "string",
+                  "operation": "regex",
+                  "name": "filter.operator.regex"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          -100,
+          620
+        ],
+        "id": "tool-web-search-router",
+        "name": "Tool: Web Search Router"
       },
       {
         "parameters": {
@@ -580,7 +646,7 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          -100,
+          420,
           620
         ],
         "id": "compatibility-formatter",
@@ -689,7 +755,7 @@
           ],
           [
             {
-              "node": "Format Memory Write Point",
+              "node": "Tool: Embed Memory Record",
               "type": "main",
               "index": 0
             }
@@ -750,7 +816,25 @@
         "main": [
           [
             {
+              "node": "Tool: Web Search Router",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Tool: Web Search Router": {
+        "main": [
+          [
+            {
               "node": "Tool: Brave Search",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Compatibility Formatter",
               "type": "main",
               "index": 0
             }
@@ -784,6 +868,17 @@
           [
             {
               "node": "Agent Memory Instructions",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Tool: Embed Memory Record": {
+        "main": [
+          [
+            {
+              "node": "Format Memory Write Point",
               "type": "main",
               "index": 0
             }
