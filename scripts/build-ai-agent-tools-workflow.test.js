@@ -169,7 +169,9 @@ test("intent router fans out to the expected tool outputs", () => {
   const workflow = buildAiAgentToolsWorkflow(loadCurrentWorkflow());
 
   assert.deepEqual(connectionTargetNames(workflow, "Intent Router", 0), ["Tool: Search Memory"]);
-  assert.deepEqual(connectionTargetNames(workflow, "Intent Router", 1), ["Tool: Write Memory"]);
+  assert.deepEqual(connectionTargetNames(workflow, "Intent Router", 1), [
+    "Format Memory Write Point",
+  ]);
   assert.deepEqual(connectionTargetNames(workflow, "Intent Router", 2), ["Tool: Memory Status"]);
   assert.deepEqual(connectionTargetNames(workflow, "Intent Router", 3), [
     "Tool: Image Generate/Edit",
@@ -195,6 +197,49 @@ test("chat route enters Agent Context Builder only after memory instructions", (
     "Agent Context Builder",
   ]);
   assert.deepEqual(directMainInputs(workflow, "Agent Context Builder"), ["Agent Memory Instructions"]);
+});
+
+test("DeepSeek chat model is configured with credential reference and no obvious secret literals", () => {
+  const workflow = buildAiAgentToolsWorkflow(loadCurrentWorkflow());
+  const chatModel = node(workflow, "DeepSeek Chat Model");
+  const serializedWorkflow = JSON.stringify(workflow);
+  const serializedModel = JSON.stringify(chatModel);
+  const hasCredentialReference =
+    chatModel.credentials && Object.keys(chatModel.credentials).length > 0;
+  const hasEnvBasedAuthField = /\$env\.(?:DEEPSEEK|OPENAI)[A-Z0-9_]*API/i.test(serializedModel);
+
+  assert.ok(chatModel, "missing DeepSeek Chat Model node");
+  assert.ok(
+    hasCredentialReference || hasEnvBasedAuthField,
+    "DeepSeek Chat Model should use n8n credential references or env-based auth"
+  );
+  assert.doesNotMatch(serializedWorkflow, /sk-[A-Za-z0-9_-]{8,}/);
+  assert.doesNotMatch(serializedWorkflow, /Bearer\s+[A-Za-z0-9._-]{8,}/i);
+});
+
+test("record route formats a structured memory write point before writing to Qdrant", () => {
+  const workflow = buildAiAgentToolsWorkflow(loadCurrentWorkflow());
+  const formatter = node(workflow, "Format Memory Write Point");
+  const writeMemory = node(workflow, "Tool: Write Memory");
+
+  assertSingleMainConnectionChain(workflow, [
+    "Format Memory Write Point",
+    "Tool: Write Memory",
+    "Format Memory Write Result",
+    "Format WhatsApp Reply",
+  ]);
+  assert.deepEqual(directMainInputs(workflow, "Tool: Write Memory"), [
+    "Format Memory Write Point",
+  ]);
+  assert.equal(writeMemory.parameters.jsonBody.includes("{ points: [] }"), false);
+  assert.match(writeMemory.parameters.jsonBody, /\$json/);
+
+  for (const fragment of ["points", "payload", "whatsapp_message", "groupId", "text"]) {
+    assert.ok(
+      formatter.parameters.jsCode.includes(fragment),
+      `Format Memory Write Point should include ${fragment}`
+    );
+  }
 });
 
 test("non-chat command routes reach reply formatter without entering agent context", () => {

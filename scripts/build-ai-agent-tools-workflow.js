@@ -21,6 +21,7 @@ const expectedNodeNames = Object.freeze([
   "WhatsApp AI Agent",
   "Structured Reply Parser",
   "Tool: Search Memory",
+  "Format Memory Write Point",
   "Tool: Write Memory",
   "Format Memory Write Result",
   "Tool: Brave Search",
@@ -248,6 +249,40 @@ return [
 ];`;
 }
 
+function buildFormatMemoryWritePointCode() {
+  return String.raw`const input = $json || {};
+const groupId = input.groupId || "";
+const userId = input.userId || "";
+const userName = input.userName || "";
+const text = String(input.text || input.message || "").trim();
+const timestamp = input.timestamp || Math.floor(Date.now() / 1000);
+const id = input.messageId || [groupId, userId, timestamp].join(":");
+
+return [
+  {
+    json: {
+      ...input,
+      memoryPoint: {
+        points: [
+          {
+            id,
+            vector: input.embedding || [],
+            payload: {
+              type: "whatsapp_message",
+              groupId,
+              userId,
+              userName,
+              text,
+              timestamp,
+            },
+          },
+        ],
+      },
+    },
+  },
+];`;
+}
+
 function buildOriginalPayloadAccessorCode() {
   return String.raw`function originalPayload() {
   try {
@@ -424,6 +459,21 @@ function buildFallbackCode() {
 ];`;
 }
 
+function findSourceNode(sourceWorkflow, name) {
+  return (sourceWorkflow.nodes || []).find((item) => item.name === name);
+}
+
+function buildDeepSeekChatModelExtra(sourceWorkflow) {
+  const sourceDeepseek = findSourceNode(sourceWorkflow, "Deepseek");
+  const safeExtra = { typeVersion: 1.2 };
+
+  if (sourceDeepseek?.credentials && Object.keys(sourceDeepseek.credentials).length > 0) {
+    safeExtra.credentials = clone(sourceDeepseek.credentials);
+  }
+
+  return safeExtra;
+}
+
 function buildNodes(sourceWorkflow) {
   const sourceWebhook = (sourceWorkflow.nodes || []).find((item) => item.type === "n8n-nodes-base.webhook");
   const webhookPath = sourceWebhook?.parameters?.path || "whatsapp-trigger";
@@ -534,7 +584,7 @@ function buildNodes(sourceWorkflow) {
           baseURL: "https://api.deepseek.com",
         },
       },
-      { typeVersion: 1.2 }
+      buildDeepSeekChatModelExtra(sourceWorkflow)
     ),
     node(
       "WhatsApp AI Agent",
@@ -572,15 +622,22 @@ function buildNodes(sourceWorkflow) {
       { typeVersion: 4.4, onError: "continueRegularOutput" }
     ),
     node(
+      "Format Memory Write Point",
+      "n8n-nodes-base.code",
+      [-60, 460],
+      { jsCode: buildFormatMemoryWritePointCode() },
+      { typeVersion: 2 }
+    ),
+    node(
       "Tool: Write Memory",
       "n8n-nodes-base.httpRequest",
-      [-60, 460],
+      [180, 460],
       {
         method: "PUT",
         url: `${QDRANT_COLLECTION_URL}/points?wait=true`,
         sendBody: true,
         specifyBody: "json",
-        jsonBody: "={{ $json.memoryPoint || { points: [] } }}",
+        jsonBody: "={{ $json.memoryPoint }}",
         options: {},
       },
       { typeVersion: 4.4, onError: "continueRegularOutput" }
@@ -588,7 +645,7 @@ function buildNodes(sourceWorkflow) {
     node(
       "Format Memory Write Result",
       "n8n-nodes-base.code",
-      [180, 460],
+      [420, 460],
       { jsCode: buildMemoryWriteResultCode() },
       { typeVersion: 2 }
     ),
@@ -806,7 +863,7 @@ function buildConnections() {
     "Intent Router": {
       main: [
         [connection("Tool: Search Memory")],
-        [connection("Tool: Write Memory")],
+        [connection("Format Memory Write Point")],
         [connection("Tool: Memory Status")],
         [connection("Tool: Image Generate/Edit")],
         [connection("Existing Qdrant Collection")],
@@ -830,6 +887,9 @@ function buildConnections() {
     },
     "Compatibility Formatter": {
       main: [[connection("Agent Memory Instructions")]],
+    },
+    "Format Memory Write Point": {
+      main: [[connection("Tool: Write Memory")]],
     },
     "Tool: Write Memory": {
       main: [[connection("Format Memory Write Result")]],

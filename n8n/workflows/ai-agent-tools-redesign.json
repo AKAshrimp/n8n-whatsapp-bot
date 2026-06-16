@@ -296,7 +296,13 @@
           -240
         ],
         "id": "deepseek-chat-model",
-        "name": "DeepSeek Chat Model"
+        "name": "DeepSeek Chat Model",
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "ACXsfX5WhExX9qyc",
+            "name": "Header Auth account"
+          }
+        }
       },
       {
         "parameters": {
@@ -349,17 +355,30 @@
       },
       {
         "parameters": {
+          "jsCode": "const input = $json || {};\nconst groupId = input.groupId || \"\";\nconst userId = input.userId || \"\";\nconst userName = input.userName || \"\";\nconst text = String(input.text || input.message || \"\").trim();\nconst timestamp = input.timestamp || Math.floor(Date.now() / 1000);\nconst id = input.messageId || [groupId, userId, timestamp].join(\":\");\n\nreturn [\n  {\n    json: {\n      ...input,\n      memoryPoint: {\n        points: [\n          {\n            id,\n            vector: input.embedding || [],\n            payload: {\n              type: \"whatsapp_message\",\n              groupId,\n              userId,\n              userName,\n              text,\n              timestamp,\n            },\n          },\n        ],\n      },\n    },\n  },\n];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -60,
+          460
+        ],
+        "id": "format-memory-write-point",
+        "name": "Format Memory Write Point"
+      },
+      {
+        "parameters": {
           "method": "PUT",
           "url": "http://qdrant:6333/collections/whatsapp_memory/points?wait=true",
           "sendBody": true,
           "specifyBody": "json",
-          "jsonBody": "={{ $json.memoryPoint || { points: [] } }}",
+          "jsonBody": "={{ $json.memoryPoint }}",
           "options": {}
         },
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.4,
         "position": [
-          -60,
+          180,
           460
         ],
         "id": "tool-write-memory",
@@ -373,7 +392,7 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          180,
+          420,
           460
         ],
         "id": "format-memory-write-result",
@@ -670,7 +689,7 @@
           ],
           [
             {
-              "node": "Tool: Write Memory",
+              "node": "Format Memory Write Point",
               "type": "main",
               "index": 0
             }
@@ -765,6 +784,17 @@
           [
             {
               "node": "Agent Memory Instructions",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Format Memory Write Point": {
+        "main": [
+          [
+            {
+              "node": "Tool: Write Memory",
               "type": "main",
               "index": 0
             }
