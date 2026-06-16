@@ -24,6 +24,7 @@ const expectedNodeNames = Object.freeze([
   "Tool: Write Memory",
   "Format Memory Write Result",
   "Tool: Brave Search",
+  "Tool: Format Brave Results",
   "Tool: Image Generate/Edit",
   "Format Image Result",
   "Tool: Memory Status",
@@ -144,12 +145,14 @@ const normalized = {
 const searchMemory = firstNodeJson("Tool: Search Memory");
 const memberProfile = firstNodeJson("Member Profile Retriever");
 const recentContext = firstNodeJson("Recent Context Store");
-const braveSearch = firstNodeJson("Tool: Brave Search");
+const braveResults = firstNodeJson("Tool: Format Brave Results");
 const message = normalizedPayload.text || input.text || input.message || "";
 const groupId = normalizedPayload.groupId || input.groupId || input.to || input.chatId || "";
 const userId = normalizedPayload.userId || input.userId || input.author || input.from || "";
 const userName = normalizedPayload.userName || input.userName || input.pushName || input.notifyName || "";
-const webSearchContext = extractBraveResults(braveSearch);
+const webSearchContext = Array.isArray(braveResults.webSearchContext)
+  ? braveResults.webSearchContext
+  : extractBraveResults(braveResults);
 
 return [
   {
@@ -194,6 +197,26 @@ function buildCompatibilityFormatterCode() {
     ...item.json,
     memoryCollection: "whatsapp_memory",
     memoryEndpoint: "http://qdrant:6333/collections/whatsapp_memory",
+  },
+}));`;
+}
+
+function buildFormatBraveResultsCode() {
+  return String.raw`function extractBraveResults(response) {
+  const results = response?.web?.results || response?.results || [];
+  return Array.isArray(results)
+    ? results.slice(0, 5).map((result) => ({
+        title: result.title || "",
+        url: result.url || "",
+        description: result.description || result.snippet || "",
+      }))
+    : [];
+}
+
+return $input.all().map((item) => ({
+  json: {
+    ...item.json,
+    webSearchContext: extractBraveResults(item.json),
   },
 }));`;
 }
@@ -599,6 +622,13 @@ function buildNodes(sourceWorkflow) {
       { typeVersion: 4.4, onError: "continueRegularOutput" }
     ),
     node(
+      "Tool: Format Brave Results",
+      "n8n-nodes-base.code",
+      [180, 660],
+      { jsCode: buildFormatBraveResultsCode() },
+      { typeVersion: 2 }
+    ),
+    node(
       "Tool: Image Generate/Edit",
       "n8n-nodes-base.httpRequest",
       [-60, 860],
@@ -790,6 +820,12 @@ function buildConnections() {
       main: [[connection("Recent Context Store")]],
     },
     "Recent Context Store": {
+      main: [[connection("Compatibility Formatter")]],
+    },
+    "Tool: Brave Search": {
+      main: [[connection("Tool: Format Brave Results")]],
+    },
+    "Tool: Format Brave Results": {
       main: [[connection("Compatibility Formatter")]],
     },
     "Compatibility Formatter": {

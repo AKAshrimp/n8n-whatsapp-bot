@@ -271,7 +271,7 @@
       },
       {
         "parameters": {
-          "jsCode": "const input = $json;\n\nfunction nodeItems(nodeName) {\n  try {\n    return $items(nodeName).map((item) => item.json || {});\n  } catch (error) {\n    return [];\n  }\n}\n\nfunction firstNodeJson(nodeName) {\n  return nodeItems(nodeName)[0] || {};\n}\n\nfunction extractQdrantPayloads(response) {\n  const points = response?.result?.points || response?.result || response?.points || [];\n  return Array.isArray(points)\n    ? points.map((point) => point.payload || point).filter(Boolean)\n    : [];\n}\n\nfunction extractBraveResults(response) {\n  const results = response?.web?.results || response?.results || [];\n  return Array.isArray(results)\n    ? results.slice(0, 5).map((result) => ({\n        title: result.title || \"\",\n        url: result.url || \"\",\n        description: result.description || result.snippet || \"\",\n      }))\n    : [];\n}\n\nconst normalizedPayload = firstNodeJson(\"Normalize Payload\");\nconst normalized = {\n  ...input,\n  ...normalizedPayload,\n};\nconst searchMemory = firstNodeJson(\"Tool: Search Memory\");\nconst memberProfile = firstNodeJson(\"Member Profile Retriever\");\nconst recentContext = firstNodeJson(\"Recent Context Store\");\nconst braveSearch = firstNodeJson(\"Tool: Brave Search\");\nconst message = normalizedPayload.text || input.text || input.message || \"\";\nconst groupId = normalizedPayload.groupId || input.groupId || input.to || input.chatId || \"\";\nconst userId = normalizedPayload.userId || input.userId || input.author || input.from || \"\";\nconst userName = normalizedPayload.userName || input.userName || input.pushName || input.notifyName || \"\";\nconst webSearchContext = extractBraveResults(braveSearch);\n\nreturn [\n  {\n    json: {\n      ...input,\n      ...normalized,\n      text: message,\n      groupId,\n      userId,\n      userName,\n      webSearchContext,\n      agentContext: {\n        message,\n        groupId,\n        userId,\n        userName,\n        webSearchContext,\n        sender: {\n          id: userId,\n          name: userName,\n        },\n        collection: \"whatsapp_memory\",\n        memorySearchContext: extractQdrantPayloads(searchMemory),\n        memberProfiles: extractQdrantPayloads(memberProfile),\n        recentContext: extractQdrantPayloads(recentContext),\n        availableTools: [\n          \"Tool: Search Memory\",\n          \"Tool: Write Memory\",\n          \"Tool: Brave Search\",\n          \"Tool: Image Generate/Edit\",\n          \"Tool: Memory Status\",\n        ],\n      },\n    },\n  },\n];"
+          "jsCode": "const input = $json;\n\nfunction nodeItems(nodeName) {\n  try {\n    return $items(nodeName).map((item) => item.json || {});\n  } catch (error) {\n    return [];\n  }\n}\n\nfunction firstNodeJson(nodeName) {\n  return nodeItems(nodeName)[0] || {};\n}\n\nfunction extractQdrantPayloads(response) {\n  const points = response?.result?.points || response?.result || response?.points || [];\n  return Array.isArray(points)\n    ? points.map((point) => point.payload || point).filter(Boolean)\n    : [];\n}\n\nfunction extractBraveResults(response) {\n  const results = response?.web?.results || response?.results || [];\n  return Array.isArray(results)\n    ? results.slice(0, 5).map((result) => ({\n        title: result.title || \"\",\n        url: result.url || \"\",\n        description: result.description || result.snippet || \"\",\n      }))\n    : [];\n}\n\nconst normalizedPayload = firstNodeJson(\"Normalize Payload\");\nconst normalized = {\n  ...input,\n  ...normalizedPayload,\n};\nconst searchMemory = firstNodeJson(\"Tool: Search Memory\");\nconst memberProfile = firstNodeJson(\"Member Profile Retriever\");\nconst recentContext = firstNodeJson(\"Recent Context Store\");\nconst braveResults = firstNodeJson(\"Tool: Format Brave Results\");\nconst message = normalizedPayload.text || input.text || input.message || \"\";\nconst groupId = normalizedPayload.groupId || input.groupId || input.to || input.chatId || \"\";\nconst userId = normalizedPayload.userId || input.userId || input.author || input.from || \"\";\nconst userName = normalizedPayload.userName || input.userName || input.pushName || input.notifyName || \"\";\nconst webSearchContext = Array.isArray(braveResults.webSearchContext)\n  ? braveResults.webSearchContext\n  : extractBraveResults(braveResults);\n\nreturn [\n  {\n    json: {\n      ...input,\n      ...normalized,\n      text: message,\n      groupId,\n      userId,\n      userName,\n      webSearchContext,\n      agentContext: {\n        message,\n        groupId,\n        userId,\n        userName,\n        webSearchContext,\n        sender: {\n          id: userId,\n          name: userName,\n        },\n        collection: \"whatsapp_memory\",\n        memorySearchContext: extractQdrantPayloads(searchMemory),\n        memberProfiles: extractQdrantPayloads(memberProfile),\n        recentContext: extractQdrantPayloads(recentContext),\n        availableTools: [\n          \"Tool: Search Memory\",\n          \"Tool: Write Memory\",\n          \"Tool: Brave Search\",\n          \"Tool: Image Generate/Edit\",\n          \"Tool: Memory Status\",\n        ],\n      },\n    },\n  },\n];"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -412,6 +412,19 @@
         "id": "tool-brave-search",
         "name": "Tool: Brave Search",
         "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "function extractBraveResults(response) {\n  const results = response?.web?.results || response?.results || [];\n  return Array.isArray(results)\n    ? results.slice(0, 5).map((result) => ({\n        title: result.title || \"\",\n        url: result.url || \"\",\n        description: result.description || result.snippet || \"\",\n      }))\n    : [];\n}\n\nreturn $input.all().map((item) => ({\n  json: {\n    ...item.json,\n    webSearchContext: extractBraveResults(item.json),\n  },\n}));"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          180,
+          660
+        ],
+        "id": "tool-format-brave-results",
+        "name": "Tool: Format Brave Results"
       },
       {
         "parameters": {
@@ -720,6 +733,28 @@
         ]
       },
       "Recent Context Store": {
+        "main": [
+          [
+            {
+              "node": "Compatibility Formatter",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Tool: Brave Search": {
+        "main": [
+          [
+            {
+              "node": "Tool: Format Brave Results",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Tool: Format Brave Results": {
         "main": [
           [
             {

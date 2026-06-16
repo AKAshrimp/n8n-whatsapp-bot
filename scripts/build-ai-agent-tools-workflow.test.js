@@ -173,7 +173,12 @@ test("intent router fans out to the expected tool outputs", () => {
 test("chat route enters Agent Context Builder only after memory instructions", () => {
   const workflow = buildAiAgentToolsWorkflow(loadCurrentWorkflow());
 
-  assert.deepEqual(connectionTargetNames(workflow, "Tool: Brave Search", 0), []);
+  assert.deepEqual(connectionTargetNames(workflow, "Tool: Brave Search", 0), [
+    "Tool: Format Brave Results",
+  ]);
+  assert.deepEqual(connectionTargetNames(workflow, "Tool: Format Brave Results", 0), [
+    "Compatibility Formatter",
+  ]);
   assert.deepEqual(directMainInputs(workflow, "Agent Context Builder"), [
     "Agent Memory Instructions",
   ]);
