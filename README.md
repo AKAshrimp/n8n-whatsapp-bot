@@ -1,54 +1,75 @@
-# n8n RAG WhatsApp Chatbot Better Version
+<div align="center">
 
-A WhatsApp group AI assistant built with **n8n**, **Qdrant**, **DeepSeek**, **Qwen embeddings**, and optional **Brave Search**.
+# n8n RAG WhatsApp chatbot
 
-It can answer group messages, retrieve long-term chat memory, use member profiles for context, search the web when needed, and write new WhatsApp memories back into Qdrant.
+An n8n workflow that gives a WhatsApp group chat long-term memory, member context, web search, and a slightly rude group-friend personality.
+
+[![Node.js](https://img.shields.io/badge/Node.js-24.x-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![n8n](https://img.shields.io/badge/n8n-workflow-EA4B71?logo=n8n&logoColor=white)](https://n8n.io/)
+[![Qdrant](https://img.shields.io/badge/Qdrant-vector_memory-DC244C)](https://qdrant.tech/)
+[![Docker](https://img.shields.io/badge/Docker-compose-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
+
+</div>
 
 ![Main Chat Brain](docs/images/chat-brain.png)
 
-## Features
+## What it does
 
-- WhatsApp group chatbot powered by n8n workflows
-- RAG memory retrieval with Qdrant
-- Qwen embedding-based semantic search
-- Member profile and group context support
-- Recent chat context for natural replies
-- DeepSeek LLM response generation
-- Optional Brave Search web context
-- Memory write-back into Qdrant
-- Settings endpoint for allowed WhatsApp groups
+This is a self-hosted WhatsApp group AI bot. It listens to WhatsApp messages, decides whether the message should be answered, pulls relevant group memory from Qdrant, optionally searches the web, asks DeepSeek for a reply, then sends the answer back to WhatsApp.
 
-## Architecture
+The fun part is the memory layer. The bot does not just answer the latest message. It can use:
 
-```text
-WhatsApp message
--> Embedding
--> Qdrant memory search
--> Member profile context
--> Recent reply context
--> Web-search decision
--> DeepSeek response
--> Save short-term memory
--> Reply to WhatsApp
-```
+- long-term WhatsApp message memory from Qdrant
+- member profiles and group background
+- recent 5-minute group context
+- short-term `@ai` conversation turns
+- Brave Search results when the question needs fresh web context
 
-The main n8n workflow is exported here:
+## Workflow
+
+The main workflow export is here:
 
 ```text
 n8n/workflows/n8n-rag-whatsapp-chatbot-better-version.json
 ```
 
-## Services
+High-level flow:
 
-The included Docker Compose setup runs:
+```text
+WhatsApp
+  -> n8n webhook
+  -> Qwen embedding
+  -> Qdrant RAG search
+  -> profile + recent context
+  -> web-search classifier
+  -> Brave Search, if needed
+  -> DeepSeek response
+  -> save memory
+  -> WhatsApp reply
+```
 
-- `whatsapp-bridge`, WhatsApp Web bridge and HTTP API
-- `n8n`, workflow automation
-- `qdrant`, vector database for memory
+## Stack
 
-## Required environment variables
+| Layer | Tool |
+| --- | --- |
+| Workflow | n8n |
+| WhatsApp bridge | `whatsapp-web.js` |
+| Vector memory | Qdrant |
+| Embeddings | Qwen / DashScope compatible embeddings |
+| LLM | DeepSeek |
+| Optional web context | Brave Search |
+| Runtime | Docker Compose |
 
-Create a local `.env` file. Do not commit it.
+## Quick start
+
+Clone the repo:
+
+```powershell
+git clone https://github.com/AKAshrimp/n8n-whatsapp-bot.git
+cd n8n-whatsapp-bot
+```
+
+Create a local `.env` file. Keep it private.
 
 ```text
 EMBEDDING_URL: your embedding endpoint
@@ -57,47 +78,72 @@ EMBEDDING_MODEL: text-embedding-v4
 BRAVE_SEARCH_API_KEY: your Brave Search key, optional
 ```
 
-Other LLM provider keys can be added depending on your n8n credentials and selected models.
-
-## Run locally
+Start the stack:
 
 ```powershell
 docker compose up -d
 ```
 
-Then open:
+Open n8n:
 
 ```text
 http://localhost:5678
 ```
 
-Import the workflow JSON from:
+Import the workflow:
 
 ```text
 n8n/workflows/n8n-rag-whatsapp-chatbot-better-version.json
 ```
 
-## WhatsApp bridge
-
-Start the bridge and scan the WhatsApp Web QR code from the container logs:
+Then scan the WhatsApp Web QR code:
 
 ```powershell
 docker logs -f whatsapp-bridge
 ```
 
-Allowed groups can be managed from:
+## Group settings
+
+Allowed WhatsApp groups can be edited from the small settings page:
 
 ```text
 http://localhost:3000/settings
 ```
 
-## Test
+This lets you change which groups the bot responds to without rebuilding the container.
+
+## Memory design
+
+The bot uses Qdrant for long-term memory:
+
+- `whatsapp_message`, normal group messages
+- `member_profile`, summarized member style and background
+- recent message scrolls, used for "what just happened" context
+
+The prompt layer is split into smaller n8n Code nodes so the workflow is easier to read:
+
+```text
+prepare memory
+-> classify request
+-> select member profiles
+-> format semantic memory
+-> format recent context
+-> set persona policy
+-> assemble LLM messages
+```
+
+## Development
+
+Run the tests:
 
 ```powershell
 npm test
 ```
 
-## Notes
+Current test coverage includes message classification, group settings, history import filtering, workflow patching, and Qdrant request builders.
 
-- Secrets, credentials, `.env`, local n8n databases, and Qdrant storage should stay out of Git.
-- The screenshot was captured from the n8n canvas. n8n exports workflow JSON officially, but it does not provide a dedicated polished screenshot export.
+## Safety notes
+
+- Do not commit `.env`, n8n credentials, local n8n databases, Qdrant storage, or WhatsApp sessions.
+- The workflow export should use credential references, not raw API keys.
+- The screenshot is from the n8n canvas. n8n officially exports workflow JSON, but it does not have a dedicated "make my workflow look beautiful in README" button yet.
