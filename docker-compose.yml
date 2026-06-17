@@ -18,6 +18,7 @@ services:
       - BRAVE_SEARCH_API_KEY_FILE=/home/node/.n8n/bravesearch-key
     volumes:
       - n8n_data:/home/node/.n8n
+      - ./n8n/private-prompts:/home/node/.n8n/private-prompts:ro
       - ./n8n/backups/bravesearch-key:/home/node/.n8n/bravesearch-key:ro
     restart: unless-stopped
     depends_on:

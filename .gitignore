@@ -17,3 +17,4 @@ n8n/workflows/*-verify.json
 n8n/workflows/*.before-*.json
 n8n/workflows/workflows.before-*.json
 n8n/backups/
+n8n/private-prompts/

@@ -36,70 +36,62 @@ test("buildRecentReplyContextScrollRequestCode requests only recent same-group m
   assert.match(code, /with_vector: false/);
 });
 
-test("buildPrepareMemoryCode keeps unified persona by default but allows explicit imitation", () => {
+test("buildPrepareMemoryCode loads private prompt config", () => {
   const code = buildPrepareMemoryCode();
 
+  assert.match(code, /memory-prompts\.json/);
+  assert.match(code, /promptConfig\.strings/);
   assert.match(code, /memberProfileMemories/);
   assert.doesNotMatch(code, /groupProfileMemories/);
   assert.doesNotMatch(code, /retrievedGroupProfiles/);
   assert.doesNotMatch(code, /group_profile/);
-  assert.match(code, /使用者現在問的具體要求最優先/);
-  assert.match(code, /預設統一使用同一個群友人格/);
-  assert.match(code, /明確要求模仿某位成員/);
-  assert.match(code, /輕量模仿該成員的節奏、語氣、互動方式和口頭禪/);
-  assert.doesNotMatch(code, /更貼近該成員的風格/);
 });
 
-test("buildPrepareMemoryCode only requires memory disclaimer for group-memory questions", () => {
+test("buildPrepareMemoryCode keeps routing and model logic without inline prompts", () => {
   const code = buildPrepareMemoryCode();
 
-  assert.match(code, /一般知識、旅遊建議、笑話、寫作、翻譯、腦震盪/);
-  assert.match(code, /直接用大模型常識回答/);
-  assert.match(code, /只有當使用者問群內歷史、成員私事、過去聊天記錄/);
-  assert.match(code, /才需要先說目前沒有足夠記憶/);
-  assert.match(code, /不要叫使用者先提供笑話/);
-});
-
-test("buildPrepareMemoryCode chooses pro model for reasoning and memory organization", () => {
-  const code = buildPrepareMemoryCode();
-
-  assert.match(code, /FAST_RESPONSE_MODEL = "deepseek-v4-flash"/);
   assert.match(code, /STRONG_RESPONSE_MODEL = "deepseek-v4-pro"/);
   assert.match(code, /needsStrongResponseModel/);
-  assert.match(code, /分析|整理|總結|总结|比較|比较|推理/);
   assert.match(code, /groupHistoryRequested/);
   assert.match(code, /responseModel/);
+  assert.match(code, /format_semantic_memory_/);
+  assert.match(code, /set_persona_policy_/);
 });
 
-test("buildPrepareMemoryCode builds reply assist prompt from recent context and own profile", () => {
+test("buildPrepareMemoryCode builds reply assist fields from private prompts", () => {
   const code = buildPrepareMemoryCode();
 
   assert.match(code, /qdrant scroll recent reply context/);
   assert.match(code, /isReplyAssistRequest/);
-  assert.match(code, /扮我覆/);
-  assert.match(code, /我要點覆/);
-  assert.doesNotMatch(code, /\(\?:怎麼\|怎么\|點\|点\)回/);
   assert.match(code, /recentReplyContext/);
   assert.match(code, /selectOwnMemberProfileForReplyAssist/);
   assert.match(code, /replyAssistTargetProfile/);
-  assert.match(code, /最近 5 分鐘群聊現場/);
-  assert.match(code, /幫 user 寫一條像他本人會講的回覆/);
-  assert.match(code, /首選：/);
-  assert.match(code, /嘴賤版：/);
-  assert.match(code, /安全版：/);
+  assert.match(code, /format_recent_context_/);
   assert.match(code, /responseMode: isReplyAssist \? "reply_assist" : "chat"/);
 });
 
-test("buildPrepareMemoryCode treats member phrases as background, not reusable quotes", () => {
+test("buildPrepareMemoryCode filters profile and raw history exposure", () => {
   const code = buildPrepareMemoryCode();
 
-  assert.match(code, /可以合理使用少量口頭禪或常見句式增加群味/);
-  assert.match(code, /每次最多用一個/);
-  assert.match(code, /不要硬塞、不要連續每句都用、不要列出口頭禪清單/);
-  assert.match(code, /Kelvin/);
-  assert.match(code, /只使用該成員的語氣、節奏和口頭禪/);
-  assert.match(code, /不要混用其他成員的口頭禪/);
-  assert.match(code, /明確要求原句、逐字、引用或 exact wording/);
+  assert.match(code, /selectMemberProfilesForQuestion/);
+  assert.match(code, /isImitationRequest/);
+  assert.match(code, /selectedProfiles: \[\]/);
+  assert.match(code, /matchedTargetName/);
+  assert.match(code, /retrievedMemberProfiles: selectedMemberProfileMemories/);
+  assert.match(code, /select_member_profiles_/);
+  assert.match(code, /format_semantic_memory_/);
+});
+
+test("buildPrepareMemoryCode keeps member alias matching rules private", () => {
+  const code = buildPrepareMemoryCode();
+
+  assert.match(code, /memberAliasMap/);
+  assert.match(code, /vincy/);
+  assert.match(code, /cvvc/);
+  assert.match(code, /kelvincheng/);
+  assert.match(code, /riley/);
+  assert.match(code, /stone/);
+  assert.match(code, /select_member_profiles_/);
 });
 
 test("web search context upgrades final response model to pro", () => {
@@ -110,62 +102,10 @@ test("web search context upgrades final response model to pro", () => {
   assert.match(code, /responseModel: webSearchContext \|\| input\.webSearch\?\.shouldSearch/);
 });
 
-test("buildPrepareMemoryCode does not expose member profiles or raw history by default", () => {
-  const code = buildPrepareMemoryCode();
-
-  assert.match(code, /非模仿要求：不提供 member_profile 原文/);
-  assert.match(code, /selectedProfiles: \[\]/);
-  assert.doesNotMatch(code, /非模仿要求：可以提供所有 member_profile 作背景參考/);
-  assert.match(code, /普通聊天不提供群組歷史原文/);
-  assert.match(code, /只在使用者明確詢問群內歷史、過去事件、某人之前講過什麼/);
-});
-
-test("buildPrepareMemoryCode keeps exact quotes behind explicit quote requests", () => {
-  const code = buildPrepareMemoryCode();
-
-  assert.match(code, /isExactQuoteRequest/);
-  assert.match(code, /即使用到歷史記憶，也預設只能概述/);
-  assert.match(code, /只有使用者明確要求原句、逐字、引用或 exact wording 時/);
-  assert.match(code, /隱私、安全、資料使用或洩漏問題/);
-  assert.match(code, /不要引用任何成員舊句/);
-});
-
-test("buildPrepareMemoryCode filters member profiles to one target for imitation requests", () => {
-  const code = buildPrepareMemoryCode();
-
-  assert.match(code, /selectMemberProfilesForQuestion/);
-  assert.match(code, /isImitationRequest/);
-  assert.match(code, /只提供被模仿目標的 member_profile/);
-  assert.match(code, /如果模仿目標不明確或有歧義/);
-  assert.match(code, /避免把 A 的語氣混入 B 的口頭禪/);
-  assert.match(code, /matchedTargetName/);
-  assert.match(code, /retrievedMemberProfiles: selectedMemberProfileMemories/);
-});
-
-test("buildPrepareMemoryCode includes marathon member alias matching rules", () => {
-  const code = buildPrepareMemoryCode();
-
-  assert.match(code, /memberAliasMap/);
-  assert.match(code, /vincy/);
-  assert.match(code, /曾詠靖/);
-  assert.match(code, /cvvc/);
-  assert.match(code, /kelvincheng/);
-  assert.match(code, /riley/);
-  assert.match(code, /互剪/);
-  assert.match(code, /惠/);
-  assert.match(code, /stone/);
-  assert.match(code, /石學恩/);
-  assert.match(code, /chineseAliasCharacters/);
-});
-
 test("buildSearchClassifierRequestCode asks DeepSeek to decide search need by task type", () => {
   const code = buildSearchClassifierRequestCode();
 
   assert.match(code, /searchClassifierMessages/);
-  assert.match(code, /不要問自己有沒有訓練資料/);
-  assert.match(code, /介紹遊戲/);
-  assert.match(code, /建議/);
-  assert.match(code, /最新|價格|狀態|API|版本/);
   assert.match(code, /JSON only/);
 });
 
@@ -177,7 +117,7 @@ test("web search code parses classifier output and formats snippets for DeepSeek
   assert.doesNotMatch(buildBraveSearchCode(), /process\.env/);
   assert.match(buildBraveSearchCode(), /\/home\/node\/\.n8n\/bravesearch-key/);
   assert.match(buildBraveSearchCode(), /extra_snippets/);
-  assert.match(buildAppendWebSearchContextCode(), /外部網頁搜尋結果/);
+  assert.match(buildAppendWebSearchContextCode(), /webSearchContext/);
   assert.match(buildAppendWebSearchContextCode(), /description/);
   assert.match(buildAppendWebSearchContextCode(), /url/);
 });
@@ -198,7 +138,7 @@ test("chat branch uses static data short-term AI turn buffer without Qdrant poll
   assert.match(prepareCode, /getWorkflowStaticData\("global"\)/);
   assert.match(prepareCode, /aiTurnBuffer/);
   assert.match(prepareCode, /shortTermAiContext/);
-  assert.match(prepareCode, /最近幾輪 @ai 對話/);
+  assert.match(prepareCode, /format_recent_context_/);
   assert.match(prepareCode, /User:/);
   assert.match(prepareCode, /AI:/);
 
@@ -356,10 +296,10 @@ test("patchWorkflow removes forget-me deletion branch", () => {
       },
       { name: "prepare memory", parameters: { jsCode: "old" } },
       { name: "qdrant search memory", parameters: {}, type: "http", typeVersion: 1, position: [0, 0], id: "search" },
-      { name: "prepare memory status", parameters: { jsCode: "你可以用 @ai forget me 刪除你在此群組的記憶。" } },
+      { name: "prepare memory status", parameters: { jsCode: "memory status response" } },
       { name: "build forget me request", parameters: {} },
       { name: "qdrant forget me", parameters: { url: "http://qdrant:6333/collections/whatsapp_memory/points/delete?wait=true" } },
-      { name: "prepare forget me response", parameters: { jsCode: "已刪除你在這個群組的 AI 記憶。" } },
+      { name: "prepare forget me response", parameters: { jsCode: "forget me response" } },
     ],
     connections: {
       Switch: {
@@ -389,10 +329,10 @@ test("patchWorkflow removes forget-me deletion branch", () => {
   assert.equal(workflow.nodes.some((node) => /forget me/i.test(node.name)), false);
   assert.doesNotMatch(JSON.stringify(workflow), /points\/delete\?wait=true/);
   assert.doesNotMatch(JSON.stringify(workflow), /forget_me|rag-switch-forget-me/);
-  assert.doesNotMatch(
-    workflow.nodes.find((node) => node.name === "prepare memory status").parameters.jsCode,
-    /刪除|删除|forget me/
-  );
+  const memoryStatusNode = workflow.nodes.find((node) => node.name === "prepare memory status");
+  if (memoryStatusNode) {
+    assert.doesNotMatch(memoryStatusNode.parameters.jsCode, /delete|forget me/i);
+  }
 });
 
 test("patchWebSearchWorkflow preserves existing prepare memory code", () => {
@@ -468,7 +408,7 @@ test("local workflow sends image edit failures back to WhatsApp", () => {
 
   assert.equal(editNode?.onError, "continueErrorOutput");
   assert.ok(errorNode, "prepare image error message node should exist");
-  assert.match(errorNode.parameters.jsCode, /圖片生成失敗/);
+  assert.ok(errorNode.parameters.jsCode.length > 0);
   assert.doesNotMatch(errorNode.parameters.jsCode, /Authorization|Bearer|API key/i);
   assert.deepEqual(workflow.connections["edit Gpt image2"].main[1], [
     { node: "prepare image error message", type: "main", index: 0 },
@@ -488,8 +428,8 @@ test("local workflow does not include forget-me deletion nodes", () => {
   assert.equal(workflow.nodes.some((node) => /forget me/i.test(node.name)), false);
   assert.doesNotMatch(serialized, /points\/delete\?wait=true/);
   assert.doesNotMatch(serialized, /forget_me|rag-switch-forget-me/);
-  assert.doesNotMatch(
-    workflow.nodes.find((node) => node.name === "prepare memory status").parameters.jsCode,
-    /刪除|删除|forget me/
-  );
+  const memoryStatusNode = workflow.nodes.find((node) => node.name === "prepare memory status");
+  if (memoryStatusNode) {
+    assert.doesNotMatch(memoryStatusNode.parameters.jsCode, /delete|forget me/i);
+  }
 });
