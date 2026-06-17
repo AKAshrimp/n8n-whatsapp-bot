@@ -1,0 +1,1084 @@
+[
+  {
+    "updatedAt": "2026-06-04T04:06:40.716Z",
+    "createdAt": "2026-05-30T14:13:18.758Z",
+    "id": "whatsapp-bot-ai-agent-tools",
+    "name": "whatsapp bot AI Agent tools",
+    "description": "Generated redesign of the WhatsApp bot workflow around an AI Agent with focused memory, search, image, and reply tools.",
+    "active": false,
+    "isArchived": false,
+    "nodes": [
+      {
+        "parameters": {
+          "content": "## Entry and routing\nReceive WhatsApp payloads, normalize fields, and route chat, record, memory, image, admin, and fallback intents.",
+          "height": 420,
+          "width": 620,
+          "color": 4
+        },
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [
+          -820,
+          -260
+        ],
+        "id": "sticky-entry-and-routing",
+        "name": "Sticky: Entry and routing"
+      },
+      {
+        "parameters": {
+          "content": "## Agent core\nUse a central WhatsApp AI Agent with a DeepSeek-compatible chat model, explicit memory instructions, and structured replies.",
+          "height": 420,
+          "width": 620,
+          "color": 5
+        },
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [
+          180,
+          -340
+        ],
+        "id": "sticky-agent-core",
+        "name": "Sticky: Agent core"
+      },
+      {
+        "parameters": {
+          "content": "## Agent tools\nExpose memory search, memory writes, Brave search, image actions, and status checks as focused tool branches.",
+          "height": 420,
+          "width": 620,
+          "color": 6
+        },
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [
+          -120,
+          500
+        ],
+        "id": "sticky-agent-tools",
+        "name": "Sticky: Agent tools"
+      },
+      {
+        "parameters": {
+          "content": "## Data and memory\nKeep the existing Qdrant collection whatsapp_memory intact and adapt schemas in small compatibility nodes.",
+          "height": 420,
+          "width": 620,
+          "color": 3
+        },
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [
+          -980,
+          500
+        ],
+        "id": "sticky-data-and-memory",
+        "name": "Sticky: Data and memory"
+      },
+      {
+        "parameters": {
+          "content": "## Output and errors\nFormat bridge replies, send them through the WhatsApp bridge, save recent AI turns, and fail softly.",
+          "height": 420,
+          "width": 620,
+          "color": 7
+        },
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [
+          980,
+          -260
+        ],
+        "id": "sticky-output-and-errors",
+        "name": "Sticky: Output and errors"
+      },
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "whatsapp-trigger",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2.1,
+        "position": [
+          -720,
+          0
+        ],
+        "id": "whatsapp-webhook",
+        "name": "WhatsApp Webhook",
+        "webhookId": "ai-agent-tools-whatsapp-trigger"
+      },
+      {
+        "parameters": {
+          "jsCode": "const body = $json.body ?? $json;\n\nreturn [\n  {\n    json: {\n      raw: body,\n      command: body.command || \"chat\",\n      groupId: body.groupId || body.to || body.chatId,\n      userId: body.userId || body.author || body.from,\n      userName: body.userName || body.pushName || body.notifyName || \"\",\n      text: String(body.text || body.message || body.caption || \"\").trim(),\n      messageId: body.messageId || body.id || \"\",\n      timestamp: Number(body.timestamp || Math.floor(Date.now() / 1000)),\n      hasMedia: Boolean(body.hasMedia || body.media),\n      media: body.media || null,\n    },\n  },\n];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -500,
+          0
+        ],
+        "id": "normalize-payload",
+        "name": "Normalize Payload"
+      },
+      {
+        "parameters": {
+          "rules": {
+            "values": [
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 3
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $json.command }}",
+                      "rightValue": "chat",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals",
+                        "name": "filter.operator.equals"
+                      }
+                    }
+                  ],
+                  "combinator": "and"
+                }
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 3
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $json.command }}",
+                      "rightValue": "record",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals",
+                        "name": "filter.operator.equals"
+                      }
+                    }
+                  ],
+                  "combinator": "and"
+                }
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 3
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $json.command }}",
+                      "rightValue": "memory_status",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals",
+                        "name": "filter.operator.equals"
+                      }
+                    }
+                  ],
+                  "combinator": "and"
+                }
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 3
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $json.command }}",
+                      "rightValue": "image",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals",
+                        "name": "filter.operator.equals"
+                      }
+                    }
+                  ],
+                  "combinator": "and"
+                }
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 3
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $json.command }}",
+                      "rightValue": "admin",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals",
+                        "name": "filter.operator.equals"
+                      }
+                    }
+                  ],
+                  "combinator": "and"
+                }
+              }
+            ]
+          },
+          "options": {
+            "fallbackOutput": "extra"
+          }
+        },
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.3,
+        "position": [
+          -280,
+          0
+        ],
+        "id": "intent-router",
+        "name": "Intent Router"
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "agent-memory-instructions",
+                "name": "systemInstructions",
+                "type": "string",
+                "value": "Use WhatsApp group memory only when it is relevant. Do not expose raw private history unless the user explicitly asks for exact wording. Keep replies natural, concise, and safe."
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          160,
+          -160
+        ],
+        "id": "agent-memory-instructions",
+        "name": "Agent Memory Instructions"
+      },
+      {
+        "parameters": {
+          "jsCode": "const input = $json;\n\nfunction nodeItems(nodeName) {\n  try {\n    return $items(nodeName).map((item) => item.json || {});\n  } catch (error) {\n    return [];\n  }\n}\n\nfunction firstNodeJson(nodeName) {\n  return nodeItems(nodeName)[0] || {};\n}\n\nfunction extractQdrantPayloads(response) {\n  const points = response?.result?.points || response?.result || response?.points || [];\n  return Array.isArray(points)\n    ? points.map((point) => point.payload || point).filter(Boolean)\n    : [];\n}\n\nfunction extractBraveResults(response) {\n  const results = response?.web?.results || response?.results || [];\n  return Array.isArray(results)\n    ? results.slice(0, 5).map((result) => ({\n        title: result.title || \"\",\n        url: result.url || \"\",\n        description: result.description || result.snippet || \"\",\n      }))\n    : [];\n}\n\nconst normalizedPayload = firstNodeJson(\"Normalize Payload\");\nconst normalized = {\n  ...input,\n  ...normalizedPayload,\n};\nconst searchMemory = firstNodeJson(\"Tool: Search Memory\");\nconst memberProfile = firstNodeJson(\"Member Profile Retriever\");\nconst recentContext = firstNodeJson(\"Recent Context Store\");\nconst braveResults = firstNodeJson(\"Tool: Format Brave Results\");\nconst message = normalizedPayload.text || input.text || input.message || \"\";\nconst groupId = normalizedPayload.groupId || input.groupId || input.to || input.chatId || \"\";\nconst userId = normalizedPayload.userId || input.userId || input.author || input.from || \"\";\nconst userName = normalizedPayload.userName || input.userName || input.pushName || input.notifyName || \"\";\nconst webSearchContext = Array.isArray(braveResults.webSearchContext)\n  ? braveResults.webSearchContext\n  : extractBraveResults(braveResults);\n\nreturn [\n  {\n    json: {\n      ...input,\n      ...normalized,\n      text: message,\n      groupId,\n      userId,\n      userName,\n      webSearchContext,\n      agentContext: {\n        message,\n        groupId,\n        userId,\n        userName,\n        webSearchContext,\n        sender: {\n          id: userId,\n          name: userName,\n        },\n        collection: \"whatsapp_memory\",\n        memorySearchContext: extractQdrantPayloads(searchMemory),\n        memberProfiles: extractQdrantPayloads(memberProfile),\n        recentContext: extractQdrantPayloads(recentContext),\n        availableTools: [\n          \"Tool: Search Memory\",\n          \"Tool: Write Memory\",\n          \"Tool: Brave Search\",\n          \"Tool: Image Generate/Edit\",\n          \"Tool: Memory Status\",\n        ],\n      },\n    },\n  },\n];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          380,
+          0
+        ],
+        "id": "agent-context-builder",
+        "name": "Agent Context Builder"
+      },
+      {
+        "parameters": {
+          "model": "deepseek-v4-flash",
+          "options": {
+            "baseURL": "https://api.deepseek.com"
+          }
+        },
+        "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+        "typeVersion": 1.2,
+        "position": [
+          380,
+          -240
+        ],
+        "id": "deepseek-chat-model",
+        "name": "DeepSeek Chat Model",
+        "credentials": {
+          "openAiApi": {
+            "id": "REPLACE_WITH_DEEPSEEK_OPENAI_CREDENTIAL",
+            "name": "DeepSeek OpenAI-compatible credential"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "promptType": "define",
+          "text": "={{ $json.agentContext.message }}",
+          "options": {
+            "systemMessage": "={{ $json.systemInstructions || 'You are a WhatsApp group AI assistant.' }}"
+          }
+        },
+        "type": "@n8n/n8n-nodes-langchain.agent",
+        "typeVersion": 1.8,
+        "position": [
+          620,
+          0
+        ],
+        "id": "whatsapp-ai-agent",
+        "name": "WhatsApp AI Agent"
+      },
+      {
+        "parameters": {
+          "jsCode": "const response = $json.output || $json.text || $json.message || \"\";\nlet parsed = null;\n\nif (typeof response === \"string\") {\n  try {\n    parsed = JSON.parse(response);\n  } catch (error) {\n    parsed = { text: response };\n  }\n}\n\nconst reply = parsed && typeof parsed === \"object\" ? parsed : { text: String(response || \"\") };\n\nreturn [\n  {\n    json: {\n      ...$json,\n      replyText: String(reply.text || reply.message || \"\").trim(),\n      replyType: reply.type || \"text\",\n      imagePayload: reply.imagePayload || null,\n      memoryAction: reply.memoryAction || null,\n    },\n  },\n];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          860,
+          0
+        ],
+        "id": "structured-reply-parser",
+        "name": "Structured Reply Parser"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "http://qdrant:6333/collections/whatsapp_memory/points/scroll",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ { limit: 8, with_payload: true, with_vector: false, filter: { must: [{ key: \"groupId\", match: { value: $json.groupId } }, { key: \"type\", match: { value: \"whatsapp_message\" } }] } } }}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          -60,
+          260
+        ],
+        "id": "tool-search-memory",
+        "name": "Tool: Search Memory",
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ $env.EMBEDDING_URL }}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "={{ \"Bearer \" + $env.EMBEDDING_API_KEY }}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={\n  \"model\": \"{{ $env.EMBEDDING_MODEL }}\",\n  \"input\": \"{{ $json.text }}\"\n}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          -280,
+          460
+        ],
+        "id": "tool-embed-memory-record",
+        "name": "Tool: Embed Memory Record",
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "const input = $json || {};\nlet embeddingResponse = {};\nlet original = {};\n\ntry {\n  embeddingResponse = $(\"Tool: Embed Memory Record\").first().json || {};\n} catch (error) {\n  embeddingResponse = input;\n}\n\ntry {\n  original = $(\"Normalize Payload\").first().json || {};\n} catch (error) {\n  original = input;\n}\n\nconst vector = embeddingResponse.data?.[0]?.embedding || embeddingResponse.embedding || input.data?.[0]?.embedding;\n\nif (!Array.isArray(vector) || vector.length === 0) {\n  throw new Error(\"Embedding missing for memory write; refusing to upsert an empty vector.\");\n}\n\nconst groupId = original.groupId || input.groupId || \"\";\nconst userId = original.userId || input.userId || \"\";\nconst userName = original.userName || input.userName || \"\";\nconst text = String(original.text || input.text || input.message || \"\").trim();\nconst timestamp = original.timestamp || input.timestamp || Math.floor(Date.now() / 1000);\nconst id = original.messageId || input.messageId || [groupId, userId, timestamp].join(\":\");\n\nreturn [\n  {\n    json: {\n      ...original,\n      ...input,\n      memoryPoint: {\n        points: [\n          {\n            id,\n            vector,\n            payload: {\n              type: \"whatsapp_message\",\n              groupId,\n              userId,\n              userName,\n              text,\n              timestamp,\n            },\n          },\n        ],\n      },\n    },\n  },\n];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -60,
+          460
+        ],
+        "id": "format-memory-write-point",
+        "name": "Format Memory Write Point"
+      },
+      {
+        "parameters": {
+          "method": "PUT",
+          "url": "http://qdrant:6333/collections/whatsapp_memory/points?wait=true",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ $json.memoryPoint }}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          180,
+          460
+        ],
+        "id": "tool-write-memory",
+        "name": "Tool: Write Memory",
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "function originalPayload() {\n  try {\n    return $(\"Normalize Payload\").first().json || {};\n  } catch (error) {\n    return {};\n  }\n}\n\nconst original = originalPayload();\nconst response = $json || {};\nconst failed = Boolean(response.error || response.message?.error);\nconst replyText = failed\n  ? \"記低唔成功，等陣再試。\"\n  : \"記低咗。\";\n\nreturn [\n  {\n    json: {\n      ...original,\n      groupId: original.groupId || response.groupId || \"\",\n      userId: original.userId || response.userId || \"\",\n      text: original.text || response.text || \"\",\n      replyText,\n      replyType: \"text\",\n      message: replyText,\n    },\n  },\n];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          420,
+          460
+        ],
+        "id": "format-memory-write-result",
+        "name": "Format Memory Write Result"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": false,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "id": "ai-agent-tools-web-search-trigger",
+                "leftValue": "={{ $json.text || '' }}",
+                "rightValue": "(current|fresh|news|latest|recent|api|version|price|status|today|now|update|updates|release|pricing|cost|stock|weather)",
+                "operator": {
+                  "type": "string",
+                  "operation": "regex",
+                  "name": "filter.operator.regex"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          -100,
+          620
+        ],
+        "id": "tool-web-search-router",
+        "name": "Tool: Web Search Router"
+      },
+      {
+        "parameters": {
+          "method": "GET",
+          "url": "https://api.search.brave.com/res/v1/web/search",
+          "sendQuery": true,
+          "queryParameters": {
+            "parameters": [
+              {
+                "name": "q",
+                "value": "={{ $json.text }}"
+              }
+            ]
+          },
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-Subscription-Token",
+                "value": "={{ $env.BRAVE_SEARCH_API_KEY }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          -60,
+          660
+        ],
+        "id": "tool-brave-search",
+        "name": "Tool: Brave Search",
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "function extractBraveResults(response) {\n  const results = response?.web?.results || response?.results || [];\n  return Array.isArray(results)\n    ? results.slice(0, 5).map((result) => ({\n        title: result.title || \"\",\n        url: result.url || \"\",\n        description: result.description || result.snippet || \"\",\n      }))\n    : [];\n}\n\nreturn $input.all().map((item) => ({\n  json: {\n    ...item.json,\n    webSearchContext: extractBraveResults(item.json),\n  },\n}));"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          180,
+          660
+        ],
+        "id": "tool-format-brave-results",
+        "name": "Tool: Format Brave Results"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ $env.IMAGE_PROVIDER_URL || 'https://api.openai.com/v1/images/generations' }}",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ { prompt: $json.text, image: $json.media } }}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          -60,
+          860
+        ],
+        "id": "tool-image-generate-edit",
+        "name": "Tool: Image Generate/Edit",
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "function originalPayload() {\n  try {\n    return $(\"Normalize Payload\").first().json || {};\n  } catch (error) {\n    return {};\n  }\n}\n\nconst original = originalPayload();\nconst response = $json || {};\nconst failed = Boolean(response.error || response.message?.error);\nconst imageUrl =\n  response.data?.[0]?.url ||\n  response.result?.url ||\n  response.url ||\n  response.imageUrl ||\n  \"\";\nconst imagePayload = response.data?.[0] || response.result || response.imagePayload || null;\nconst replyText = failed\n  ? \"圖片處理暫時失敗，等陣再試。\"\n  : imageUrl\n    ? `圖片準備好：${imageUrl}`\n    : \"圖片請求已處理。\";\n\nreturn [\n  {\n    json: {\n      ...original,\n      groupId: original.groupId || response.groupId || \"\",\n      userId: original.userId || response.userId || \"\",\n      text: original.text || response.text || \"\",\n      replyText,\n      replyType: imageUrl ? \"image\" : \"text\",\n      imagePayload,\n      message: replyText,\n    },\n  },\n];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          180,
+          860
+        ],
+        "id": "format-image-result",
+        "name": "Format Image Result"
+      },
+      {
+        "parameters": {
+          "method": "GET",
+          "url": "http://qdrant:6333/collections/whatsapp_memory",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          -60,
+          1060
+        ],
+        "id": "tool-memory-status",
+        "name": "Tool: Memory Status",
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "function originalPayload() {\n  try {\n    return $(\"Normalize Payload\").first().json || {};\n  } catch (error) {\n    return {};\n  }\n}\n\nconst original = originalPayload();\nconst response = $json || {};\nconst failed = Boolean(response.error || response.message?.error);\nconst pointsCount = response.result?.points_count ?? response.result?.pointsCount ?? response.points_count;\nconst vectorsCount = response.result?.vectors_count ?? response.result?.vectorsCount ?? response.vectors_count;\nconst status = response.result?.status || response.status || \"\";\nconst details = [\n  status ? `狀態：${status}` : \"\",\n  pointsCount !== undefined ? `記憶數量：${pointsCount}` : \"\",\n  vectorsCount !== undefined ? `向量數量：${vectorsCount}` : \"\",\n].filter(Boolean).join(\"\\n\");\nconst replyText = failed\n  ? \"暫時查唔到記憶狀態。\"\n  : details || \"記憶庫連線正常。\";\n\nreturn [\n  {\n    json: {\n      ...original,\n      groupId: original.groupId || response.groupId || \"\",\n      userId: original.userId || response.userId || \"\",\n      text: original.text || response.text || \"\",\n      replyText,\n      replyType: \"text\",\n      message: replyText,\n    },\n  },\n];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          180,
+          1060
+        ],
+        "id": "format-memory-status-result",
+        "name": "Format Memory Status Result"
+      },
+      {
+        "parameters": {
+          "method": "GET",
+          "url": "http://qdrant:6333/collections/whatsapp_memory",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          -820,
+          620
+        ],
+        "id": "existing-qdrant-collection",
+        "name": "Existing Qdrant Collection",
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "function originalPayload() {\n  try {\n    return $(\"Normalize Payload\").first().json || {};\n  } catch (error) {\n    return {};\n  }\n}\n\nconst original = originalPayload();\nconst response = $json || {};\nconst failed = Boolean(response.error || response.message?.error);\nconst collectionName = response.result?.config?.params?.vectors ? \"whatsapp_memory\" : \"whatsapp_memory\";\nconst pointsCount = response.result?.points_count ?? response.result?.pointsCount ?? response.points_count;\nconst status = response.result?.status || response.status || \"\";\nconst replyText = failed\n  ? \"暫時查唔到管理狀態。\"\n  : [\n      `Collection：${collectionName}`,\n      status ? `狀態：${status}` : \"\",\n      pointsCount !== undefined ? `記憶數量：${pointsCount}` : \"\",\n    ].filter(Boolean).join(\"\\n\") || \"管理檢查完成。\";\n\nreturn [\n  {\n    json: {\n      ...original,\n      groupId: original.groupId || response.groupId || \"\",\n      userId: original.userId || response.userId || \"\",\n      text: original.text || response.text || \"\",\n      replyText,\n      replyType: \"text\",\n      message: replyText,\n    },\n  },\n];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -580,
+          820
+        ],
+        "id": "format-admin-status-result",
+        "name": "Format Admin Status Result"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "http://qdrant:6333/collections/whatsapp_memory/points/scroll",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ { limit: 20, with_payload: true, with_vector: false, filter: { must: [{ key: \"groupId\", match: { value: $json.groupId } }, { key: \"type\", match: { value: \"member_profile\" } }] } } }}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          -580,
+          620
+        ],
+        "id": "member-profile-retriever",
+        "name": "Member Profile Retriever",
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "http://qdrant:6333/collections/whatsapp_memory/points/scroll",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ { limit: 80, with_payload: true, with_vector: false, filter: { must: [{ key: \"groupId\", match: { value: $json.groupId } }] } } }}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          -340,
+          620
+        ],
+        "id": "recent-context-store",
+        "name": "Recent Context Store",
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "return $input.all().map((item) => ({\n  json: {\n    ...item.json,\n    memoryCollection: \"whatsapp_memory\",\n    memoryEndpoint: \"http://qdrant:6333/collections/whatsapp_memory\",\n  },\n}));"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          420,
+          620
+        ],
+        "id": "compatibility-formatter",
+        "name": "Compatibility Formatter"
+      },
+      {
+        "parameters": {
+          "jsCode": "return [\n  {\n    json: {\n      groupId: $json.groupId,\n      replyText: \"我而家有少少甩轆，等陣再試。\",\n      replyType: \"text\",\n    },\n  },\n];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1040,
+          240
+        ],
+        "id": "error-fallback",
+        "name": "Error Fallback"
+      },
+      {
+        "parameters": {
+          "jsCode": "const fallback = \"我而家有少少甩轆，等陣再試。\";\n\nreturn [\n  {\n    json: {\n      to: $json.groupId,\n      groupId: $json.groupId,\n      userId: $json.userId,\n      question: $json.text,\n      message: $json.replyText || fallback,\n      type: $json.replyType || \"text\",\n      imagePayload: $json.imagePayload || null,\n      originalMessageId: $json.messageId || \"\",\n    },\n  },\n];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1100,
+          0
+        ],
+        "id": "format-whatsapp-reply",
+        "name": "Format WhatsApp Reply"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "http://whatsapp-bridge:3000/send-message",
+          "sendBody": true,
+          "bodyParameters": {
+            "parameters": [
+              {
+                "name": "to",
+                "value": "={{ $json.to }}"
+              },
+              {
+                "name": "message",
+                "value": "={{ $json.message }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          1320,
+          0
+        ],
+        "id": "send-whatsapp-reply",
+        "name": "Send WhatsApp Reply",
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "const staticData = $getWorkflowStaticData(\"global\");\nconst key = [$json.to, $json.userId].filter(Boolean).join(\":\") || $json.to || \"default\";\nconst turns = staticData.aiTurnBuffer ?? {};\nstaticData.aiTurnBuffer = turns;\n\nturns[key] = (Array.isArray(turns[key]) ? turns[key] : [])\n  .concat([\n    {\n      answer: $json.message,\n      question: $json.question,\n      savedAt: Date.now(),\n    },\n  ])\n  .slice(-6);\n\nreturn [{ json: { saved: true, to: $json.to } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1540,
+          0
+        ],
+        "id": "save-recent-ai-turn",
+        "name": "Save Recent AI Turn"
+      }
+    ],
+    "connections": {
+      "WhatsApp Webhook": {
+        "main": [
+          [
+            {
+              "node": "Normalize Payload",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Normalize Payload": {
+        "main": [
+          [
+            {
+              "node": "Intent Router",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Intent Router": {
+        "main": [
+          [
+            {
+              "node": "Tool: Search Memory",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Tool: Embed Memory Record",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Tool: Memory Status",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Tool: Image Generate/Edit",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Existing Qdrant Collection",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Error Fallback",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Tool: Search Memory": {
+        "main": [
+          [
+            {
+              "node": "Member Profile Retriever",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Member Profile Retriever": {
+        "main": [
+          [
+            {
+              "node": "Recent Context Store",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Recent Context Store": {
+        "main": [
+          [
+            {
+              "node": "Tool: Web Search Router",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Tool: Web Search Router": {
+        "main": [
+          [
+            {
+              "node": "Tool: Brave Search",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Compatibility Formatter",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Tool: Brave Search": {
+        "main": [
+          [
+            {
+              "node": "Tool: Format Brave Results",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Tool: Format Brave Results": {
+        "main": [
+          [
+            {
+              "node": "Compatibility Formatter",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Compatibility Formatter": {
+        "main": [
+          [
+            {
+              "node": "Agent Memory Instructions",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Tool: Embed Memory Record": {
+        "main": [
+          [
+            {
+              "node": "Format Memory Write Point",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Format Memory Write Point": {
+        "main": [
+          [
+            {
+              "node": "Tool: Write Memory",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Tool: Write Memory": {
+        "main": [
+          [
+            {
+              "node": "Format Memory Write Result",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Format Memory Write Result": {
+        "main": [
+          [
+            {
+              "node": "Format WhatsApp Reply",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Tool: Memory Status": {
+        "main": [
+          [
+            {
+              "node": "Format Memory Status Result",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Format Memory Status Result": {
+        "main": [
+          [
+            {
+              "node": "Format WhatsApp Reply",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Tool: Image Generate/Edit": {
+        "main": [
+          [
+            {
+              "node": "Format Image Result",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Format Image Result": {
+        "main": [
+          [
+            {
+              "node": "Format WhatsApp Reply",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Existing Qdrant Collection": {
+        "main": [
+          [
+            {
+              "node": "Format Admin Status Result",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Format Admin Status Result": {
+        "main": [
+          [
+            {
+              "node": "Format WhatsApp Reply",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Agent Memory Instructions": {
+        "main": [
+          [
+            {
+              "node": "Agent Context Builder",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Agent Context Builder": {
+        "main": [
+          [
+            {
+              "node": "WhatsApp AI Agent",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "DeepSeek Chat Model": {
+        "ai_languageModel": [
+          [
+            {
+              "node": "WhatsApp AI Agent",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "WhatsApp AI Agent": {
+        "main": [
+          [
+            {
+              "node": "Structured Reply Parser",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Structured Reply Parser": {
+        "main": [
+          [
+            {
+              "node": "Format WhatsApp Reply",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Error Fallback": {
+        "main": [
+          [
+            {
+              "node": "Format WhatsApp Reply",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Format WhatsApp Reply": {
+        "main": [
+          [
+            {
+              "node": "Send WhatsApp Reply",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Send WhatsApp Reply": {
+        "main": [
+          [
+            {
+              "node": "Save Recent AI Turn",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1",
+      "binaryMode": "separate"
+    },
+    "staticData": null,
+    "pinData": {},
+    "tags": []
+  }
+]
