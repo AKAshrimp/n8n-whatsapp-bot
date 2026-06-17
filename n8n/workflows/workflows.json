@@ -17,8 +17,8 @@
         "type": "n8n-nodes-base.webhook",
         "typeVersion": 2.1,
         "position": [
-          -720,
-          336
+          -760,
+          -140
         ],
         "id": "d43d78ae-8c8e-42fe-9933-4d2bc233381a",
         "name": "Webhook",
@@ -31,8 +31,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          1296,
-          -240
+          1200,
+          -180
         ],
         "id": "4a7197f8-03e0-45a6-8b08-2e1e4643925f",
         "name": "prepare memory"
@@ -51,8 +51,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.4,
         "position": [
-          2416,
-          -240
+          2640,
+          -180
         ],
         "id": "50f5d5d1-9597-4e26-b20a-de325ad7a764",
         "name": "Deepseek",
@@ -85,8 +85,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.4,
         "position": [
-          1072,
-          480
+          3120,
+          -180
         ],
         "id": "a4e6a994-522f-45aa-80b9-df181f766804",
         "name": "return message"
@@ -98,8 +98,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          2640,
-          -240
+          2880,
+          -180
         ],
         "id": "b7ee89c9-7ada-46c8-a0a7-36c744899a2d",
         "name": "save memory"
@@ -207,8 +207,8 @@
         "type": "n8n-nodes-base.switch",
         "typeVersion": 3.4,
         "position": [
-          -496,
-          288
+          -520,
+          -140
         ],
         "id": "68009f46-66c2-4575-bcc4-9338bf52f439",
         "name": "Switch"
@@ -238,8 +238,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.4,
         "position": [
-          176,
-          144
+          240,
+          500
         ],
         "id": "971adb65-9670-42be-be92-2b9c4a84f842",
         "name": "Gpt-image2"
@@ -278,8 +278,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.4,
         "position": [
-          400,
-          48
+          520,
+          420
         ],
         "id": "eb0ba4dd-5f00-47f1-a57b-cf8798c1af98",
         "name": "return image"
@@ -312,8 +312,8 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.3,
         "position": [
-          -272,
-          48
+          -240,
+          420
         ],
         "id": "f65e8e1a-d1e6-412a-b87c-30ef249ef24a",
         "name": "If"
@@ -325,8 +325,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          -48,
-          -48
+          0,
+          420
         ],
         "id": "207eadca-98db-4008-bd1d-1ab2fae3810e",
         "name": "prepare image binary"
@@ -372,8 +372,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.4,
         "position": [
-          176,
-          -48
+          240,
+          340
         ],
         "id": "b1c78dd1-7589-4317-a477-794534d94b42",
         "name": "edit Gpt image2",
@@ -391,8 +391,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.4,
         "position": [
-          -384,
-          688
+          -760,
+          800
         ],
         "id": "rag-qdrant-init-collection",
         "name": "qdrant init collection"
@@ -404,8 +404,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          -272,
-          336
+          -240,
+          800
         ],
         "id": "rag-prepare-memory-point",
         "name": "prepare memory point"
@@ -435,8 +435,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.4,
         "position": [
-          -48,
-          336
+          0,
+          800
         ],
         "id": "rag-openai-embed-record",
         "name": "qwen embed record"
@@ -448,8 +448,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          176,
-          336
+          240,
+          800
         ],
         "id": "rag-build-qdrant-record-point",
         "name": "build qdrant record point"
@@ -466,8 +466,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.4,
         "position": [
-          400,
-          336
+          480,
+          800
         ],
         "id": "rag-qdrant-upsert-memory",
         "name": "qdrant upsert memory"
@@ -497,8 +497,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.4,
         "position": [
-          -272,
-          -240
+          -240,
+          -300
         ],
         "id": "rag-openai-embed-question",
         "name": "qwen embed question"
@@ -510,8 +510,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          -48,
-          -240
+          0,
+          -300
         ],
         "id": "rag-build-qdrant-search",
         "name": "build qdrant search"
@@ -528,8 +528,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.4,
         "position": [
-          176,
-          -240
+          240,
+          -300
         ],
         "id": "rag-qdrant-search-memory",
         "name": "qdrant search memory"
@@ -541,8 +541,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          848,
-          480
+          720,
+          800
         ],
         "id": "rag-prepare-memory-status",
         "name": "prepare memory status"
@@ -554,8 +554,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          400,
-          -240
+          480,
+          -300
         ],
         "id": "rag-build-qdrant-profile-scroll",
         "name": "build qdrant profile scroll"
@@ -572,8 +572,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.4,
         "position": [
-          624,
-          -240
+          720,
+          -300
         ],
         "id": "rag-qdrant-scroll-profiles",
         "name": "qdrant scroll profiles",
@@ -607,8 +607,8 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.3,
         "position": [
-          1744,
-          -240
+          2160,
+          -180
         ],
         "id": "rag-needs-web-search",
         "name": "needs web search"
@@ -620,8 +620,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          1968,
-          -336
+          2400,
+          -340
         ],
         "id": "rag-brave-search",
         "name": "Brave Search"
@@ -633,8 +633,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          2192,
-          -240
+          2400,
+          -180
         ],
         "id": "rag-append-web-search-context",
         "name": "append web search context"
@@ -646,8 +646,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          1072,
-          -240
+          1440,
+          -180
         ],
         "id": "rag-build-web-search-classifier",
         "name": "build web search classifier"
@@ -666,8 +666,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.4,
         "position": [
-          1296,
-          -240
+          1680,
+          -180
         ],
         "id": "rag-deepseek-search-classifier",
         "name": "DeepSeek search classifier",
@@ -686,8 +686,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          1520,
-          -240
+          1920,
+          -180
         ],
         "id": "rag-parse-web-search-decision",
         "name": "parse web search decision"
@@ -699,8 +699,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          400,
-          -176
+          520,
+          280
         ],
         "id": "image-prepare-error-message",
         "name": "prepare image error message"
@@ -712,8 +712,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          848,
-          -520
+          960,
+          -460
         ],
         "id": "rag-build-recent-reply-context-scroll",
         "name": "build recent reply context scroll"
@@ -730,12 +730,76 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.4,
         "position": [
-          1072,
-          -520
+          1200,
+          -460
         ],
         "id": "rag-qdrant-scroll-recent-reply-context",
         "name": "qdrant scroll recent reply context",
         "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "content": "## Main Chat Brain\nInput, RAG retrieval, member context, web check, DeepSeek, short-term memory, and WhatsApp reply.",
+          "height": 720,
+          "width": 4200,
+          "color": 7
+        },
+        "id": "rag-layout-note-main-chat-brain",
+        "name": "layout note main chat brain",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [
+          -900,
+          -560
+        ]
+      },
+      {
+        "parameters": {
+          "content": "## Image\nGenerate or edit images, then return image output or a safe error message.",
+          "height": 420,
+          "width": 1120,
+          "color": 7
+        },
+        "id": "rag-layout-note-image",
+        "name": "layout note image",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [
+          -300,
+          220
+        ]
+      },
+      {
+        "parameters": {
+          "content": "## Memory & Status\nRecord normal messages into Qdrant and answer the memory status command.",
+          "height": 260,
+          "width": 1280,
+          "color": 7
+        },
+        "id": "rag-layout-note-memory-status",
+        "name": "layout note memory status",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [
+          -300,
+          700
+        ]
+      },
+      {
+        "parameters": {
+          "content": "## Setup\nManual Qdrant collection initialization.",
+          "height": 260,
+          "width": 560,
+          "color": 7
+        },
+        "id": "rag-layout-note-setup",
+        "name": "layout note setup",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [
+          -900,
+          700
+        ]
       }
     ],
     "connections": {

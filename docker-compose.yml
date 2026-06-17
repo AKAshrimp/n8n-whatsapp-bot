@@ -37,6 +37,8 @@ services:
       - TARGET_GROUP_NAMES=Private Wutsapp Group,珍•Marathon Part-time•珠
       - MEMORY_LIMIT=10
       - AI_OUTBOX_LOG_PATH=/app/session/ai-outbox.jsonl
+      - GROUP_SETTINGS_PATH=/app/session/group-settings.json
+      - ENABLE_GROUPS_ENDPOINT=true
     volumes:
       - whatsapp_session:/app/session
     restart: unless-stopped

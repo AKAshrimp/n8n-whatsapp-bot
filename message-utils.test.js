@@ -66,6 +66,7 @@ const {
   createOutgoingMessageTracker,
   createTextHash,
   formatGroupList,
+  createAllowedGroupSettingsStore,
   isRecordableText,
   createStableMessageId,
 } = require("./message-utils");
@@ -351,4 +352,43 @@ test("formatGroupList returns safe group names and ids only", () => {
       participantsCount: 2,
     },
   ]);
+});
+
+test("allowed group settings store normalizes and matches group names", () => {
+  const writes = [];
+  const store = createAllowedGroupSettingsStore({
+    initialGroupNames: ["Private Wutsapp Group"],
+    readText: () => "",
+    writeText: (text) => writes.push(text),
+  });
+
+  assert.deepEqual(store.getGroupNames(), ["Private Wutsapp Group"]);
+  assert.equal(store.isAllowed("Private Wutsapp Group"), true);
+  assert.equal(store.isAllowed("(Private Wutsapp Group)"), true);
+  assert.equal(store.isAllowed("Other Group"), false);
+
+  const updated = store.setGroupNames([
+    " 珍•Marathon Part-time•珠 ",
+    "珍•Marathon Part-time•珠",
+    "",
+    "New Group",
+  ]);
+
+  assert.deepEqual(updated, ["珍•Marathon Part-time•珠", "New Group"]);
+  assert.equal(store.isAllowed("（珍•Marathon Part-time•珠）"), true);
+  assert.equal(store.isAllowed("Private Wutsapp Group"), false);
+  assert.match(writes.at(-1), /"groupNames":/);
+  assert.match(writes.at(-1), /New Group/);
+});
+
+test("allowed group settings store loads persisted group names", () => {
+  const store = createAllowedGroupSettingsStore({
+    initialGroupNames: ["Fallback Group"],
+    readText: () => JSON.stringify({ groupNames: ["Persisted Group"] }),
+    writeText: () => {},
+  });
+
+  assert.deepEqual(store.getGroupNames(), ["Persisted Group"]);
+  assert.equal(store.isAllowed("Persisted Group"), true);
+  assert.equal(store.isAllowed("Fallback Group"), false);
 });

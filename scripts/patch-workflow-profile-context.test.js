@@ -278,6 +278,50 @@ test("patchWorkflow inserts profile scroll between qdrant search and prepare mem
   ]);
 });
 
+test("patchWorkflow applies compact neutral presentation layout", () => {
+  const workflow = {
+    nodes: [
+      { name: "Webhook", parameters: {}, type: "webhook", typeVersion: 1, position: [0, 0], id: "webhook" },
+      { name: "Switch", parameters: {}, type: "switch", typeVersion: 1, position: [0, 0], id: "switch" },
+      { name: "qwen embed question", parameters: {}, type: "http", typeVersion: 1, position: [0, 0], id: "embed-question" },
+      { name: "build qdrant search", parameters: {}, type: "code", typeVersion: 1, position: [0, 0], id: "build-search" },
+      { name: "qdrant search memory", parameters: {}, type: "http", typeVersion: 1, position: [0, 0], id: "search" },
+      { name: "prepare memory", parameters: { jsCode: "old" }, type: "code", typeVersion: 1, position: [0, 0], id: "prepare" },
+      { name: "Deepseek", parameters: {}, type: "http", typeVersion: 1, position: [0, 0], id: "deepseek" },
+      { name: "save memory", parameters: {}, type: "code", typeVersion: 1, position: [0, 0], id: "save" },
+      { name: "return message", parameters: {}, type: "http", typeVersion: 1, position: [0, 0], id: "return" },
+      { name: "prepare image binary", parameters: {}, type: "code", typeVersion: 1, position: [0, 0], id: "image-binary" },
+      { name: "Gpt-image2", parameters: {}, type: "http", typeVersion: 1, position: [0, 0], id: "image-generate" },
+      { name: "edit Gpt image2", parameters: {}, type: "http", typeVersion: 1, position: [0, 0], id: "image-edit" },
+      { name: "return image", parameters: {}, type: "http", typeVersion: 1, position: [0, 0], id: "return-image" },
+      { name: "prepare memory point", parameters: {}, type: "code", typeVersion: 1, position: [0, 0], id: "memory-point" },
+      { name: "qwen embed record", parameters: {}, type: "http", typeVersion: 1, position: [0, 0], id: "embed-record" },
+      { name: "build qdrant record point", parameters: {}, type: "code", typeVersion: 1, position: [0, 0], id: "record-point" },
+      { name: "qdrant upsert memory", parameters: {}, type: "http", typeVersion: 1, position: [0, 0], id: "upsert" },
+      { name: "prepare memory status", parameters: {}, type: "code", typeVersion: 1, position: [0, 0], id: "status" },
+      { name: "qdrant init collection", parameters: {}, type: "http", typeVersion: 1, position: [0, 0], id: "init" },
+    ],
+    connections: {
+      "qdrant search memory": { main: [[{ node: "prepare memory", type: "main", index: 0 }]] },
+    },
+  };
+
+  patchWorkflow(workflow);
+
+  const stickyNotes = workflow.nodes.filter((node) => node.type === "n8n-nodes-base.stickyNote");
+  assert.equal(stickyNotes.length, 4);
+  assert.ok(stickyNotes.every((node) => node.parameters.color === 7));
+  assert.ok(stickyNotes.some((node) => /Main Chat Brain/.test(node.parameters.content)));
+  assert.ok(stickyNotes.some((node) => /Image/.test(node.parameters.content)));
+  assert.ok(stickyNotes.some((node) => /Memory & Status/.test(node.parameters.content)));
+  assert.ok(stickyNotes.some((node) => /Setup/.test(node.parameters.content)));
+  assert.deepEqual(workflow.nodes.find((node) => node.name === "prepare memory").position, [1200, -180]);
+  assert.deepEqual(workflow.nodes.find((node) => node.name === "Deepseek").position, [2640, -180]);
+  assert.deepEqual(workflow.nodes.find((node) => node.name === "return message").position, [3120, -180]);
+  assert.deepEqual(workflow.nodes.find((node) => node.name === "prepare image binary").position, [0, 420]);
+  assert.deepEqual(workflow.nodes.find((node) => node.name === "qdrant init collection").position, [-760, 800]);
+});
+
 test("patchWorkflow removes forget-me deletion branch", () => {
   const workflow = {
     nodes: [

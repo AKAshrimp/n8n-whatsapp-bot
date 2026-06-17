@@ -69,6 +69,116 @@ function connectOnly(workflow, from, outputIndex, to) {
   ];
 }
 
+function setNodePosition(workflow, name, position) {
+  const node = maybeFindNode(workflow, name);
+  if (node) node.position = position;
+}
+
+function upsertStickyNote(workflow, { name, id, position, width, height, color, content }) {
+  upsertNode(workflow, {
+    parameters: {
+      content,
+      height,
+      width,
+      color,
+    },
+    id,
+    name,
+    type: "n8n-nodes-base.stickyNote",
+    typeVersion: 1,
+    position,
+  });
+}
+
+function applyPresentationLayout(workflow) {
+  workflow.nodes
+    .filter((node) => /^layout note /.test(node.name))
+    .map((node) => node.name)
+    .forEach((name) => removeNode(workflow, name));
+
+  const notes = [
+    {
+      name: "layout note main chat brain",
+      id: "rag-layout-note-main-chat-brain",
+      position: [-900, -560],
+      width: 4200,
+      height: 720,
+      color: 7,
+      content:
+        "## Main Chat Brain\nInput, RAG retrieval, member context, web check, DeepSeek, short-term memory, and WhatsApp reply.",
+    },
+    {
+      name: "layout note image",
+      id: "rag-layout-note-image",
+      position: [-300, 220],
+      width: 1120,
+      height: 420,
+      color: 7,
+      content:
+        "## Image\nGenerate or edit images, then return image output or a safe error message.",
+    },
+    {
+      name: "layout note memory status",
+      id: "rag-layout-note-memory-status",
+      position: [-300, 700],
+      width: 1280,
+      height: 260,
+      color: 7,
+      content:
+        "## Memory & Status\nRecord normal messages into Qdrant and answer the memory status command.",
+    },
+    {
+      name: "layout note setup",
+      id: "rag-layout-note-setup",
+      position: [-900, 700],
+      width: 560,
+      height: 260,
+      color: 7,
+      content:
+        "## Setup\nManual Qdrant collection initialization.",
+    },
+  ];
+
+  notes.forEach((note) => upsertStickyNote(workflow, note));
+
+  setNodePosition(workflow, "Webhook", [-760, -140]);
+  setNodePosition(workflow, "Switch", [-520, -140]);
+
+  setNodePosition(workflow, "qwen embed question", [-240, -300]);
+  setNodePosition(workflow, "build qdrant search", [0, -300]);
+  setNodePosition(workflow, "qdrant search memory", [240, -300]);
+  setNodePosition(workflow, "build qdrant profile scroll", [480, -300]);
+  setNodePosition(workflow, "qdrant scroll profiles", [720, -300]);
+  setNodePosition(workflow, "build recent reply context scroll", [960, -460]);
+  setNodePosition(workflow, "qdrant scroll recent reply context", [1200, -460]);
+
+  setNodePosition(workflow, "prepare memory", [1200, -180]);
+  setNodePosition(workflow, "build web search classifier", [1440, -180]);
+  setNodePosition(workflow, "DeepSeek search classifier", [1680, -180]);
+  setNodePosition(workflow, "parse web search decision", [1920, -180]);
+  setNodePosition(workflow, "needs web search", [2160, -180]);
+  setNodePosition(workflow, "Brave Search", [2400, -340]);
+  setNodePosition(workflow, "append web search context", [2400, -180]);
+
+  setNodePosition(workflow, "Deepseek", [2640, -180]);
+  setNodePosition(workflow, "save memory", [2880, -180]);
+  setNodePosition(workflow, "return message", [3120, -180]);
+
+  setNodePosition(workflow, "If", [-240, 420]);
+  setNodePosition(workflow, "prepare image binary", [0, 420]);
+  setNodePosition(workflow, "edit Gpt image2", [240, 340]);
+  setNodePosition(workflow, "Gpt-image2", [240, 500]);
+  setNodePosition(workflow, "prepare image error message", [520, 280]);
+  setNodePosition(workflow, "return image", [520, 420]);
+
+  setNodePosition(workflow, "prepare memory point", [-240, 800]);
+  setNodePosition(workflow, "qwen embed record", [0, 800]);
+  setNodePosition(workflow, "build qdrant record point", [240, 800]);
+  setNodePosition(workflow, "qdrant upsert memory", [480, 800]);
+  setNodePosition(workflow, "prepare memory status", [720, 800]);
+  setNodePosition(workflow, "qdrant init collection", [-760, 800]);
+}
+
 function buildProfileScrollRequestCode() {
   return String.raw`const body = $("Webhook").first().json.body;
 
@@ -920,6 +1030,7 @@ function patchWebSearchWorkflow(workflow) {
   connectOnly(workflow, "Brave Search", 0, "append web search context");
   connectOnly(workflow, "append web search context", 0, "Deepseek");
 
+  applyPresentationLayout(workflow);
   return workflow;
 }
 
@@ -1027,6 +1138,7 @@ function patchWorkflow(workflow) {
       workflow.connections["qdrant scroll profiles"].main.slice(0, 1);
   }
 
+  applyPresentationLayout(workflow);
   return workflow;
 }
 

@@ -27,6 +27,7 @@ const axios = require("axios"); // HTTP Client library，用來發送 Webhook �
 const {
   classifyIncomingText,
   createAiOutboxRecord,
+  createAllowedGroupSettingsStore,
   createOutgoingMessageTracker,
   createStableMessageId,
   formatGroupList,
@@ -59,6 +60,23 @@ const MEMORY_LIMIT = Number(process.env.MEMORY_LIMIT || 10);
 const outgoingMessageTracker = createOutgoingMessageTracker();
 const AI_OUTBOX_LOG_PATH =
   process.env.AI_OUTBOX_LOG_PATH || path.join("n8n", "backups", "ai-outbox.jsonl");
+const GROUP_SETTINGS_PATH =
+  process.env.GROUP_SETTINGS_PATH || path.join("session", "group-settings.json");
+const allowedGroupStore = createAllowedGroupSettingsStore({
+  initialGroupNames: TARGET_GROUP_NAMES,
+  readText: () => {
+    try {
+      return fs.readFileSync(GROUP_SETTINGS_PATH, "utf8");
+    } catch (err) {
+      if (err?.code === "ENOENT") return "";
+      throw err;
+    }
+  },
+  writeText: (text) => {
+    fs.mkdirSync(path.dirname(GROUP_SETTINGS_PATH), { recursive: true });
+    fs.writeFileSync(GROUP_SETTINGS_PATH, text, "utf8");
+  },
+});
 
 // normalizeGroupName(name) → 標準化 group 名稱，移除半形/全形括號後再比對
 function normalizeGroupName(name) {
@@ -172,11 +190,7 @@ client.on("message_create", async (msg) => {
   // chat.name → 群組名稱，例如 "Private Wutsapp Group"
   const chat = await msg.getChat();
   if (!chat.isGroup) return;
-  const normalizedChatName = normalizeGroupName(chat.name);
-  const isAllowedGroup = TARGET_GROUP_NAMES.some(
-    (groupName) => normalizeGroupName(groupName) === normalizedChatName
-  );
-  if (!isAllowedGroup) return;
+  if (!allowedGroupStore.isAllowed(chat.name)) return;
 
   // chat.id._serialized → 群組真正的 ID，格式通常是 "數字@g.us"
   // 自己發出的訊息中 msg.from 可能不是群組 ID，所以這裡統一使用 chat.id._serialized
@@ -264,6 +278,89 @@ const app = express();
 // middleware 是一個函式，每個請求進來時都會先經過它處理
 // express.json() → middleware：自動把 request body 的 JSON 字串解析成 JavaScript 物件
 app.use(express.json({ limit: "25mb" }));
+
+function renderSettingsPage(groupNames) {
+  const initialGroupNames = JSON.stringify(groupNames);
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WhatsApp Bot Settings</title>
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; background: #0f1115; color: #f4f4f5; }
+    main { max-width: 760px; margin: 40px auto; padding: 24px; }
+    .card { background: #181b20; border: 1px solid #2b3038; border-radius: 14px; padding: 24px; }
+    h1 { margin: 0 0 8px; font-size: 24px; }
+    p { color: #a1a1aa; line-height: 1.5; }
+    label { display: block; margin: 18px 0 8px; font-weight: 700; }
+    textarea { width: 100%; min-height: 180px; box-sizing: border-box; border-radius: 10px; border: 1px solid #3f4652; background: #0f1115; color: #f4f4f5; padding: 14px; font-size: 15px; line-height: 1.5; }
+    button { margin-top: 14px; border: 0; border-radius: 10px; background: #f4f4f5; color: #0f1115; padding: 10px 16px; font-weight: 700; cursor: pointer; }
+    button:disabled { opacity: 0.6; cursor: wait; }
+    .status { margin-top: 14px; min-height: 22px; color: #a1e3a1; }
+    .hint { font-size: 14px; }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="card">
+      <h1>WhatsApp Bot Groups</h1>
+      <p>One group name per line. Messages from these WhatsApp groups can use the chatbot immediately after saving.</p>
+      <label for="groups">Allowed group names</label>
+      <textarea id="groups" spellcheck="false"></textarea>
+      <p class="hint">Use the exact WhatsApp group display name. Parentheses are ignored when matching.</p>
+      <button id="save">Save groups</button>
+      <div class="status" id="status"></div>
+    </section>
+  </main>
+  <script>
+    const initialGroupNames = ${initialGroupNames};
+    const textarea = document.getElementById("groups");
+    const saveButton = document.getElementById("save");
+    const status = document.getElementById("status");
+    textarea.value = initialGroupNames.join("\\n");
+
+    saveButton.addEventListener("click", async () => {
+      saveButton.disabled = true;
+      status.textContent = "Saving...";
+      try {
+        const groupNames = textarea.value.split(/\\r?\\n/).map((name) => name.trim()).filter(Boolean);
+        const response = await fetch("/api/settings/groups", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ groupNames }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Save failed");
+        textarea.value = data.groupNames.join("\\n");
+        status.textContent = "Saved. New groups are active now.";
+      } catch (err) {
+        status.textContent = err.message || String(err);
+      } finally {
+        saveButton.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>`;
+}
+
+app.get("/settings", (_req, res) => {
+  res.type("html").send(renderSettingsPage(allowedGroupStore.getGroupNames()));
+});
+
+app.get("/api/settings/groups", (_req, res) => {
+  res.json({ groupNames: allowedGroupStore.getGroupNames() });
+});
+
+app.post("/api/settings/groups", (req, res) => {
+  const groupNames = req.body?.groupNames;
+  if (!Array.isArray(groupNames)) {
+    return res.status(400).json({ error: "groupNames must be an array." });
+  }
+
+  res.json({ groupNames: allowedGroupStore.setGroupNames(groupNames) });
+});
 
 // ------------------------------------------
 // POST /send-message 路由 (Route)

@@ -92,6 +92,62 @@ function formatGroupList(chats) {
     .filter((chat) => chat.id && chat.name);
 }
 
+function normalizeGroupName(name) {
+  return normalizeText(name).replace(/[()（）]/g, "").trim();
+}
+
+function normalizeGroupNameList(groupNames) {
+  const seen = new Set();
+  const names = [];
+
+  for (const name of Array.isArray(groupNames) ? groupNames : []) {
+    const normalized = normalizeGroupName(name);
+    const key = normalized.toLowerCase();
+    if (!normalized || seen.has(key)) continue;
+    seen.add(key);
+    names.push(normalized);
+  }
+
+  return names;
+}
+
+function createAllowedGroupSettingsStore({
+  initialGroupNames = [],
+  readText = () => "",
+  writeText = () => {},
+} = {}) {
+  let groupNames = normalizeGroupNameList(initialGroupNames);
+
+  try {
+    const stored = JSON.parse(readText() || "{}");
+    const storedNames = normalizeGroupNameList(stored.groupNames);
+    if (storedNames.length > 0) groupNames = storedNames;
+  } catch (_err) {
+    groupNames = normalizeGroupNameList(initialGroupNames);
+  }
+
+  function persist() {
+    writeText(`${JSON.stringify({ groupNames }, null, 2)}\n`);
+  }
+
+  return {
+    getGroupNames() {
+      return [...groupNames];
+    },
+
+    setGroupNames(nextGroupNames) {
+      groupNames = normalizeGroupNameList(nextGroupNames);
+      persist();
+      return [...groupNames];
+    },
+
+    isAllowed(name) {
+      const target = normalizeGroupName(name).toLowerCase();
+      return groupNames.some((groupName) => groupName.toLowerCase() === target);
+    },
+  };
+}
+
 function classifyIncomingText(value) {
   const body = normalizeText(value);
   const isImageCommand = IMAGE_COMMAND_PATTERN.test(body);
@@ -260,6 +316,7 @@ async function getImagePayloadFromMessage(message) {
 module.exports = {
   classifyIncomingText,
   createAiOutboxRecord,
+  createAllowedGroupSettingsStore,
   createHistoryImportDecision,
   createOutgoingMessageTracker,
   createStableMessageId,
