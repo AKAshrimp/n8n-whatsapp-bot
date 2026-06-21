@@ -11,7 +11,7 @@ An n8n workflow that gives a WhatsApp group chat long-term memory, member contex
 
 </div>
 
-![Main Chat Brain](docs/images/chat-brain.png)
+![Main chatbot brain workflow](docs/images/chatbot-brain.png)
 
 ## What it does
 
@@ -47,6 +47,18 @@ WhatsApp
   -> save memory
   -> WhatsApp reply
 ```
+
+### Daily AI/dev news workflow
+
+This repo also includes a preview workflow for a daily AI/dev news digest:
+
+```text
+n8n/workflows/daily-ai-dev-news-preview.json
+```
+
+It reads RSS, Reddit, and Hacker News sources, scores candidates with an LLM, enriches the top result with Brave Search, then prepares a WhatsApp-ready daily briefing.
+
+![Daily AI/dev news workflow](docs/images/daily-news.png)
 
 ## Stack
 
