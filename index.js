@@ -29,6 +29,7 @@ const {
   createAiOutboxRecord,
   createAllowedGroupSettingsStore,
   createOutgoingMessageTracker,
+  createServiceStatusSummary,
   createStableMessageId,
   formatGroupList,
   getImagePayloadFromMessage,
@@ -126,6 +127,52 @@ const client = new Client({
     // Docker 環境中需要關閉 sandbox，否則權限不足會報錯
   },
 });
+
+async function checkHttpService({ name, url, timeoutMs = 2500, summarize }) {
+  try {
+    const response = await axios.get(url, { timeout: timeoutMs });
+    return {
+      ok: response.status >= 200 && response.status < 300,
+      detail: summarize ? summarize(response.data) : `${name} responded`,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      detail: err?.message || `${name} unavailable`,
+    };
+  }
+}
+
+async function getServiceStatus() {
+  const [n8n, qdrant] = await Promise.all([
+    checkHttpService({
+      name: "n8n",
+      url: "http://n8n:5678/healthz",
+      summarize: (data) => data?.status || "healthy",
+    }),
+    checkHttpService({
+      name: "Qdrant",
+      url: "http://qdrant:6333/collections",
+      summarize: (data) => {
+        const count = Array.isArray(data?.result?.collections)
+          ? data.result.collections.length
+          : 0;
+        return `${count} collection${count === 1 ? "" : "s"}`;
+      },
+    }),
+  ]);
+
+  return {
+    checkedAt: new Date().toISOString(),
+    ...createServiceStatusSummary({
+      whatsappConnected: Boolean(client.info),
+      userId: getLoggedInUserId(),
+      n8n,
+      qdrant,
+      webhookUrl: N8N_WEBHOOK_URL,
+    }),
+  };
+}
 
 // ==========================================
 // WhatsApp Client 事件監聽 (Event Listeners)
@@ -292,6 +339,7 @@ function renderSettingsPage(groupNames) {
     main { max-width: 760px; margin: 40px auto; padding: 24px; }
     .card { background: #181b20; border: 1px solid #2b3038; border-radius: 14px; padding: 24px; }
     h1 { margin: 0 0 8px; font-size: 24px; }
+    h2 { margin: 24px 0 12px; font-size: 18px; }
     p { color: #a1a1aa; line-height: 1.5; }
     label { display: block; margin: 18px 0 8px; font-weight: 700; }
     textarea { width: 100%; min-height: 180px; box-sizing: border-box; border-radius: 10px; border: 1px solid #3f4652; background: #0f1115; color: #f4f4f5; padding: 14px; font-size: 15px; line-height: 1.5; }
@@ -299,6 +347,15 @@ function renderSettingsPage(groupNames) {
     button:disabled { opacity: 0.6; cursor: wait; }
     .status { margin-top: 14px; min-height: 22px; color: #a1e3a1; }
     .hint { font-size: 14px; }
+    .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 12px 0 4px; }
+    .service { border: 1px solid #2b3038; border-radius: 12px; padding: 14px; background: #111318; }
+    .service-name { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+    .dot { width: 10px; height: 10px; border-radius: 999px; background: #71717a; }
+    .ok .dot { background: #22c55e; }
+    .warning .dot { background: #f59e0b; }
+    .error .dot { background: #ef4444; }
+    .service-detail { margin-top: 8px; color: #a1a1aa; font-size: 13px; overflow-wrap: anywhere; }
+    .checked-at { color: #71717a; font-size: 12px; margin-top: 8px; }
   </style>
 </head>
 <body>
@@ -306,6 +363,11 @@ function renderSettingsPage(groupNames) {
     <section class="card">
       <h1>WhatsApp Bot Groups</h1>
       <p>One group name per line. Messages from these WhatsApp groups can use the chatbot immediately after saving.</p>
+      <h2>Service Status</h2>
+      <div class="status-grid" id="serviceStatus">
+        <div class="service"><div class="service-name"><span class="dot"></span>Loading...</div></div>
+      </div>
+      <div class="checked-at" id="checkedAt"></div>
       <label for="groups">Allowed group names</label>
       <textarea id="groups" spellcheck="false"></textarea>
       <p class="hint">Use the exact WhatsApp group display name. Parentheses are ignored when matching.</p>
@@ -318,7 +380,40 @@ function renderSettingsPage(groupNames) {
     const textarea = document.getElementById("groups");
     const saveButton = document.getElementById("save");
     const status = document.getElementById("status");
+    const serviceStatus = document.getElementById("serviceStatus");
+    const checkedAt = document.getElementById("checkedAt");
     textarea.value = initialGroupNames.join("\\n");
+
+    function escapeHtml(value) {
+      return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    async function loadStatus() {
+      try {
+        const response = await fetch("/api/status");
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Status check failed");
+        serviceStatus.innerHTML = data.services.map((service) => {
+          const state = escapeHtml(service.status);
+          return '<div class="service ' + state + '">' +
+            '<div class="service-name"><span class="dot"></span>' + escapeHtml(service.name) + '</div>' +
+            '<div class="service-detail">' + escapeHtml(service.detail) + '</div>' +
+            '</div>';
+        }).join("");
+        checkedAt.textContent = "Checked " + new Date(data.checkedAt).toLocaleString();
+      } catch (err) {
+        serviceStatus.innerHTML = '<div class="service error"><div class="service-name"><span class="dot"></span>Status unavailable</div><div class="service-detail">' + escapeHtml(err.message || err) + '</div></div>';
+        checkedAt.textContent = "";
+      }
+    }
+
+    loadStatus();
+    setInterval(loadStatus, 30000);
 
     saveButton.addEventListener("click", async () => {
       saveButton.disabled = true;
@@ -360,6 +455,10 @@ app.post("/api/settings/groups", (req, res) => {
   }
 
   res.json({ groupNames: allowedGroupStore.setGroupNames(groupNames) });
+});
+
+app.get("/api/status", async (_req, res) => {
+  res.json(await getServiceStatus());
 });
 
 // ------------------------------------------

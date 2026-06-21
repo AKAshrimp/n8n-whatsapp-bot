@@ -1,0 +1,432 @@
+[
+  {
+    "updatedAt": "2026-06-21T16:12:32.681Z",
+    "createdAt": "2026-06-21T14:45:01.309Z",
+    "id": "dailyAiDevNewsPreview",
+    "name": "Daily AI Dev News Preview",
+    "description": null,
+    "active": false,
+    "isArchived": false,
+    "nodes": [
+      {
+        "parameters": {},
+        "type": "n8n-nodes-base.manualTrigger",
+        "typeVersion": 1,
+        "position": [
+          -864,
+          -64
+        ],
+        "id": "37f9bd11-ea63-4978-b707-857ecab0bd85",
+        "name": "Manual Test Trigger"
+      },
+      {
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "triggerAtHour": 9
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.2,
+        "position": [
+          -864,
+          112
+        ],
+        "id": "d7579711-8749-4ab5-af7a-59648947de97",
+        "name": "Daily 9am Trigger"
+      },
+      {
+        "parameters": {
+          "jsCode": "const feeds = [\n  { source: \"Hacker News\", url: \"https://hnrss.org/newest?q=AI%20OR%20LLM%20OR%20developer%20tools%20OR%20agent\" },\n  { source: \"OpenAI\", url: \"https://openai.com/news/rss.xml\" },\n  { source: \"Hugging Face\", url: \"https://huggingface.co/blog/feed.xml\" },\n  { source: \"GitHub Blog\", url: \"https://github.blog/feed/\" },\n  { source: \"n8n Blog\", url: \"https://blog.n8n.io/rss/\" },\n  { source: \"Reddit LocalLLaMA\", url: \"https://www.reddit.com/r/LocalLLaMA/.rss\" },\n  { source: \"Reddit OpenAI\", url: \"https://www.reddit.com/r/OpenAI/.rss\" },\n  { source: \"Reddit Programming\", url: \"https://www.reddit.com/r/programming/.rss\" },\n];\nreturn feeds.map((feed) => ({ json: feed }));"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -704,
+          32
+        ],
+        "id": "d4bfa5fe-baf0-4fcc-a3a5-6b78825f7aa2",
+        "name": "Build Feed Source List"
+      },
+      {
+        "parameters": {
+          "url": "={{ $json.url }}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.rssFeedRead",
+        "typeVersion": 1.2,
+        "position": [
+          -528,
+          32
+        ],
+        "id": "13807543-244d-47b8-ac59-31351621461e",
+        "name": "RSS Read All Sources",
+        "continueOnFail": true
+      },
+      {
+        "parameters": {
+          "jsCode": "const staticData = $getWorkflowStaticData(\"global\");\nconst sentUrls = Array.isArray(staticData.sentNewsUrls) ? staticData.sentNewsUrls : [];\nstaticData.sentNewsUrls = sentUrls.slice(-300);\nconst sentSet = new Set(staticData.sentNewsUrls);\nconst cutoffMs = Date.now() - 36 * 60 * 60 * 1000;\nfunction firstValue(values) {\n  for (const value of values) {\n    if (value !== undefined) {\n      if (value !== null) {\n        if (value !== \"\") return value;\n      }\n    }\n  }\n  return \"\";\n}\nfunction stripHtml(value) {\n  return String(value ?? \"\")\n    .replace(/<[^>]*>/g, \"\")\n    .replace(/&quot;/g, \"\\\"\")\n    .replace(/&#x27;/g, \"'\")\n    .replace(/&amp;/g, \"&\")\n    .replace(/\\s+/g, \" \")\n    .trim();\n}\nfunction normalizeUrl(value) {\n  try {\n    const url = new URL(String(value ?? \"\"));\n    url.hash = \"\";\n    for (const key of [\"utm_source\", \"utm_medium\", \"utm_campaign\", \"utm_term\", \"utm_content\"]) url.searchParams.delete(key);\n    return url.toString();\n  } catch (_err) {\n    return String(value ?? \"\").trim();\n  }\n}\nfunction sourceFromUrl(url) {\n  const value = String(url ?? \"\").toLowerCase();\n  if (value.includes(\"reddit.com\")) return \"Reddit\";\n  if (value.includes(\"github\")) return \"GitHub\";\n  if (value.includes(\"hnrss\")) return \"Hacker News\";\n  if (value.includes(\"news.ycombinator\")) return \"Hacker News\";\n  if (value.includes(\"openai\")) return \"OpenAI\";\n  if (value.includes(\"huggingface\")) return \"Hugging Face\";\n  if (value.includes(\"n8n\")) return \"n8n\";\n  return \"News\";\n}\nconst rawItems = $input.all().map((item) => item.json ?? {});\nconst normalized = [];\nfor (const item of rawItems) {\n  const title = stripHtml(firstValue([item.title, item.name, item.story_title]));\n  const url = normalizeUrl(firstValue([item.link, item.url, item.guid, item.id]));\n  const summary = stripHtml(firstValue([item.contentSnippet, item.content, item.description, item.summary, item.text]));\n  if (!title) continue;\n  if (!url) continue;\n  const rawDate = firstValue([item.isoDate, item.pubDate, item.created, item.updated, item.date]);\n  const time = rawDate ? Date.parse(rawDate) : 0;\n  if (time) {\n    if (time < cutoffMs) continue;\n  }\n  normalized.push({\n    title,\n    url,\n    source: sourceFromUrl(url),\n    summary,\n    feedScore: Number(firstValue([item.points, item.score, 0])),\n    publishedAt: rawDate,\n  });\n}\nconst deduped = [];\nconst keys = new Set();\nfor (const item of normalized) {\n  const titleKey = item.title.toLowerCase().replace(/[^a-z0-9\\u3400-\\u9fff]+/gi, \" \").trim().slice(0, 120);\n  const key = item.url ? item.url : titleKey;\n  if (!key) continue;\n  if (keys.has(key)) continue;\n  if (sentSet.has(item.url)) continue;\n  keys.add(key);\n  deduped.push(item);\n}\ndeduped.sort((a, b) => Number(b.feedScore ?? 0) - Number(a.feedScore ?? 0));\nconst candidates = deduped.slice(0, 60).map((item, index) => ({ index, ...item }));\nconst scorePrompt = [\n  \"You score daily AI/dev-tools news candidates for a Hong Kong WhatsApp digest.\",\n  \"Return JSON only. No markdown.\",\n  \"Score each candidate 0-10 by importance for AI/LLM/developer-tools readers.\",\n  \"Prefer: AI model/tool releases, coding agents, open-source AI tools, developer workflow changes, n8n/automation, practical engineering impact.\",\n  \"Penalize: generic chatter, duplicates, weak Reddit posts, old or unclear items, crypto/finance unless strongly related to AI/dev tools.\",\n  \"Output shape: {\\\"items\\\":[{\\\"index\\\":0,\\\"score\\\":8,\\\"reason\\\":\\\"short reason\\\"}]}\",\n  \"Candidates JSON:\",\n  JSON.stringify(candidates, null, 2),\n].join(\"\\n\");\nreturn [{ json: { candidates, candidateCount: candidates.length, messages: [{ role: \"user\", content: scorePrompt }] } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -352,
+          32
+        ],
+        "id": "fb9d34ea-41af-4521-b785-dc2f9efb3225",
+        "name": "Build News Candidates"
+      },
+      {
+        "parameters": {
+          "promptType": "define",
+          "text": "={{ $json.messages.map(m => m.role.toUpperCase() + \":\\n\" + m.content).join(\"\\n\\n\") }}",
+          "batching": {}
+        },
+        "type": "@n8n/n8n-nodes-langchain.chainLlm",
+        "typeVersion": 1.9,
+        "position": [
+          -176,
+          32
+        ],
+        "id": "bc1ed47c-887a-46b2-93f8-3a72ee539953",
+        "name": "Score News Items"
+      },
+      {
+        "parameters": {
+          "model": "deepseek-v4-pro",
+          "options": {}
+        },
+        "type": "@n8n/n8n-nodes-langchain.lmChatDeepSeek",
+        "typeVersion": 1,
+        "position": [
+          -96,
+          -64
+        ],
+        "id": "cfd353be-5c6c-4736-a815-a428b347c9cc",
+        "name": "DeepSeek Score Model",
+        "credentials": {
+          "deepSeekApi": {
+            "id": "CsiJm23ij01b9wBt",
+            "name": "DeepSeek account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const source = $(\"Build News Candidates\").first().json;\nconst candidates = Array.isArray(source.candidates) ? source.candidates : [];\nconst rawOutput = $input.first().json;\nconst raw = String(rawOutput.text ?? rawOutput.output ?? rawOutput.response ?? rawOutput.message?.content ?? rawOutput.choices?.[0]?.message?.content ?? \"\");\nfunction parseJson(text) {\n  const fence = String.fromCharCode(96, 96, 96);\n  const cleaned = String(text ?? \"\")\n    .replace(new RegExp(\"^\" + fence + \"json\\\\s*\", \"i\"), \"\")\n    .replace(new RegExp(\"^\" + fence + \"\\\\s*\", \"i\"), \"\")\n    .replace(new RegExp(fence + \"$\", \"i\"), \"\")\n    .trim();\n  return JSON.parse(cleaned);\n}\nlet parsed;\ntry {\n  parsed = parseJson(raw);\n} catch (_err) {\n  parsed = { items: candidates.map((item) => ({ index: item.index, score: 5, reason: \"score-parse-fallback\" })) };\n}\nconst byIndex = new Map(candidates.map((item) => [Number(item.index), item]));\nconst scored = (Array.isArray(parsed.items) ? parsed.items : [])\n  .map((scoreItem) => {\n    const candidate = byIndex.get(Number(scoreItem.index));\n    if (!candidate) return null;\n    return {\n      ...candidate,\n      aiScore: Math.max(0, Math.min(10, Number(scoreItem.score) ? Number(scoreItem.score) : 0)),\n      aiReason: String(scoreItem.reason ?? \"\"),\n    };\n  })\n  .filter(Boolean)\n  .sort((a, b) => {\n    const aiDiff = b.aiScore - a.aiScore;\n    if (aiDiff !== 0) return aiDiff;\n    return Number(b.feedScore ?? 0) - Number(a.feedScore ?? 0);\n  });\nconst top10 = scored.slice(0, 10);\nconst top5 = top10.slice(0, 5);\nconst briefingPrompt = [\n  \"You are a sharp AI/dev-tools news editor writing for a Hong Kong WhatsApp group.\",\n  \"Write a beautiful, compact Traditional Chinese message from the top scored items.\",\n  \"Use exactly 5 items if available. Keep each item short and useful.\",\n  \"Tone: smart, concise, friendly Hong Kong style. No long essay.\",\n  \"Format exactly like this:\",\n  \"?? ????? AI / Dev ??\",\n  \"\",\n  \"1?? <short title>\",\n  \"???<one sentence>\",\n  \"??????<one sentence>\",\n  \"?? <source or URL>\",\n  \"\",\n  \"Finally add:\",\n  \"?? ????????<one practical takeaway>\",\n  \"\",\n  \"Top scored items JSON:\",\n  JSON.stringify(top10, null, 2),\n].join(\"\\n\");\nreturn [{ json: { ...source, scoredItems: scored, top10, top5, scoreRaw: raw, messages: [{ role: \"user\", content: briefingPrompt }] } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          144,
+          32
+        ],
+        "id": "148473c6-d56d-4e8c-ae29-db5837abc188",
+        "name": "Keep Top 10"
+      },
+      {
+        "parameters": {
+          "operation": "llm_context",
+          "query": "={{ String(($json.top10 ?? [])[0]?.title ?? \"AI developer tools news\").replace(/[\"']/g, \"\").split(/\\s+/).slice(0, 32).join(\" \").slice(0, 280) }}",
+          "additionalParameters": {
+            "country": "HK",
+            "search_lang": "zh-hant",
+            "count": 5,
+            "maximum_number_of_urls": 5,
+            "maximum_number_of_tokens": 2048
+          }
+        },
+        "type": "@brave/n8n-nodes-brave-search.braveSearch",
+        "typeVersion": 1,
+        "position": [
+          760,
+          220
+        ],
+        "id": "7e4a3ee3-c913-428a-bf35-ff4f0b79b78d",
+        "name": "Brave Enrich Top 10",
+        "credentials": {
+          "braveSearchApi": {
+            "id": "eZ883o5kQHbe62RQ",
+            "name": "Brave Search account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "promptType": "define",
+          "text": "={{ $json.messages.map(m => m.role.toUpperCase() + \":\\n\" + m.content).join(\"\\n\\n\") }}",
+          "batching": {}
+        },
+        "type": "@n8n/n8n-nodes-langchain.chainLlm",
+        "typeVersion": 1.9,
+        "position": [
+          1380,
+          20
+        ],
+        "id": "1474096b-9118-41bb-a75c-2157014670ff",
+        "name": "Write Daily Briefing"
+      },
+      {
+        "parameters": {
+          "model": "deepseek-v4-pro",
+          "options": {}
+        },
+        "type": "@n8n/n8n-nodes-langchain.lmChatDeepSeek",
+        "typeVersion": 1,
+        "position": [
+          1380,
+          240
+        ],
+        "id": "6b6bd50a-26ee-410f-bafa-96b5ab699e1f",
+        "name": "DeepSeek Briefing Model",
+        "credentials": {
+          "deepSeekApi": {
+            "id": "CsiJm23ij01b9wBt",
+            "name": "DeepSeek account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const targetGroupId = \"120363410636974224@g.us\";\nconst llm = $(\"Write Daily Briefing\").first().json;\nconst message = String(llm.text ?? llm.output ?? llm.response ?? llm.message?.content ?? llm.choices?.[0]?.message?.content ?? \"\").trim();\nif (!message) throw new Error(\"Daily briefing message is empty\");\nconst source = $(\"Keep Top 10\").first().json;\nconst urls = (source.top10 ?? []).map((item) => item.url).filter(Boolean);\nconst staticData = $getWorkflowStaticData(\"global\");\nconst existing = Array.isArray(staticData.sentNewsUrls) ? staticData.sentNewsUrls : [];\nstaticData.sentNewsUrls = Array.from(new Set([...existing, ...urls])).slice(-300);\nreturn [{ json: { to: targetGroupId, message } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1700,
+          20
+        ],
+        "id": "62ca97db-f2d8-4f6d-8949-719273efe7b9",
+        "name": "Build WhatsApp Payload"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "http://whatsapp-bridge:3000/send-message",
+          "sendBody": true,
+          "bodyParameters": {
+            "parameters": [
+              {
+                "name": "to",
+                "value": "=Value: {{ $json.to }}"
+              },
+              {
+                "name": "message",
+                "value": "=Value: {{ $json.message }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          2010,
+          20
+        ],
+        "id": "7eb91821-3d65-4ffd-8f17-7145cdd32b66",
+        "name": "Send WhatsApp News Disabled",
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "jsCode": "const source = $(\"Keep Top 10\").first().json;\nconst brave = $input.first().json;\nfunction textFrom(value) {\n  if (value === undefined) return \"\";\n  if (value === null) return \"\";\n  if (typeof value === \"string\") return value.trim();\n  if (Array.isArray(value)) return value.map(textFrom).filter(Boolean).join(\"\\n\\n\");\n  if (typeof value === \"object\") {\n    return [value.title, value.description, value.snippet, value.text, value.content, value.url ? \"Source: \" + value.url : \"\"]\n      .map(textFrom)\n      .filter(Boolean)\n      .join(\"\\n\");\n  }\n  return String(value).trim();\n}\nfunction firstText(values) {\n  for (const value of values) {\n    const text = textFrom(value);\n    if (text) return text;\n  }\n  return \"\";\n}\nconst context = firstText([brave.context, brave.llm_context, brave.full_content, brave.content, brave.results]);\nconst messages = Array.isArray(source.messages) ? source.messages.map((message) => ({ ...message })) : [];\nif (context) {\n  const extra = [\n    \"\",\n    \"External web context from Brave Search for the top scored items:\",\n    context,\n    \"Use this only to clarify background, freshness, product names, dates, and source context. Do not add claims not supported by feed items or this context.\"\n  ].join(\"\\n\");\n  if (messages.length > 0) {\n    const last = messages.length - 1;\n    messages[last] = {\n      ...messages[last],\n      content: String(messages[last].content ?? \"\") + \"\\n\\n\" + extra,\n    };\n  }\n}\nreturn [{ json: { ...source, braveContext: context, braveRaw: brave, messages } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1080,
+          20
+        ],
+        "id": "e7ce22d9-b7b8-495c-b929-7a00850bd903",
+        "name": "Append Brave Enrichment"
+      }
+    ],
+    "connections": {
+      "Manual Test Trigger": {
+        "main": [
+          [
+            {
+              "node": "Build Feed Source List",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Daily 9am Trigger": {
+        "main": [
+          [
+            {
+              "node": "Build Feed Source List",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Build Feed Source List": {
+        "main": [
+          [
+            {
+              "node": "RSS Read All Sources",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "RSS Read All Sources": {
+        "main": [
+          [
+            {
+              "node": "Build News Candidates",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Build News Candidates": {
+        "main": [
+          [
+            {
+              "node": "Score News Items",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Score News Items": {
+        "main": [
+          [
+            {
+              "node": "Keep Top 10",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "DeepSeek Score Model": {
+        "ai_languageModel": [
+          [
+            {
+              "node": "Score News Items",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Keep Top 10": {
+        "main": [
+          [
+            {
+              "node": "Brave Enrich Top 10",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "DeepSeek Briefing Model": {
+        "ai_languageModel": [
+          [
+            {
+              "node": "Write Daily Briefing",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Write Daily Briefing": {
+        "main": [
+          [
+            {
+              "node": "Build WhatsApp Payload",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Build WhatsApp Payload": {
+        "main": [
+          [
+            {
+              "node": "Send WhatsApp News Disabled",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Brave Enrich Top 10": {
+        "main": [
+          [
+            {
+              "node": "Append Brave Enrichment",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Append Brave Enrichment": {
+        "main": [
+          [
+            {
+              "node": "Write Daily Briefing",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1",
+      "timezone": "Asia/Taipei",
+      "binaryMode": "separate"
+    },
+    "staticData": {},
+    "meta": {
+      "templateCredsSetupCompleted": true
+    },
+    "pinData": {},
+    "versionId": "516b0480-04f2-4cb3-90d3-6f4fb6876143",
+    "activeVersionId": null,
+    "versionCounter": 28,
+    "triggerCount": 1,
+    "tags": [],
+    "shared": [
+      {
+        "updatedAt": "2026-06-21T14:45:01.314Z",
+        "createdAt": "2026-06-21T14:45:01.314Z",
+        "role": "workflow:owner",
+        "workflowId": "dailyAiDevNewsPreview",
+        "projectId": "Z7toCA3mXB2u18CY",
+        "project": {
+          "updatedAt": "2026-05-30T14:07:12.484Z",
+          "createdAt": "2026-05-30T14:04:02.666Z",
+          "id": "Z7toCA3mXB2u18CY",
+          "name": "Kelvin Cheng <kelvincheng213@gmail.com>",
+          "type": "personal",
+          "icon": null,
+          "description": null,
+          "creatorId": "18d57a9b-1818-4a55-8701-32feaf9b99b0"
+        }
+      }
+    ],
+    "versionMetadata": {
+      "name": null,
+      "description": null
+    }
+  }
+]

@@ -67,6 +67,7 @@ const {
   createTextHash,
   formatGroupList,
   createAllowedGroupSettingsStore,
+  createServiceStatusSummary,
   isRecordableText,
   createStableMessageId,
 } = require("./message-utils");
@@ -205,6 +206,60 @@ test("creates different UUID message ids for different source material", () => {
   assert.notEqual(firstId, secondId);
   assert.notEqual(firstId, fallbackId);
   assert.notEqual(secondId, fallbackId);
+});
+
+test("creates service status summary with overall ok state", () => {
+  assert.deepEqual(
+    createServiceStatusSummary({
+      whatsappConnected: true,
+      userId: "85266209126@c.us",
+      n8n: { ok: true, detail: "healthy" },
+      qdrant: { ok: true, detail: "1 collection" },
+      webhookUrl: "http://n8n:5678/webhook/whatsapp-trigger",
+    }),
+    {
+      overall: "ok",
+      services: [
+        {
+          name: "WhatsApp Bridge",
+          status: "ok",
+          detail: "Connected as 85266209126@c.us",
+        },
+        {
+          name: "n8n",
+          status: "ok",
+          detail: "healthy",
+        },
+        {
+          name: "Qdrant",
+          status: "ok",
+          detail: "1 collection",
+        },
+        {
+          name: "n8n Webhook",
+          status: "ok",
+          detail: "Configured",
+        },
+      ],
+    }
+  );
+});
+
+test("creates service status summary with degraded state", () => {
+  const summary = createServiceStatusSummary({
+    whatsappConnected: false,
+    n8n: { ok: false, detail: "connect ECONNREFUSED" },
+    qdrant: { ok: true, detail: "1 collection" },
+    webhookUrl: "",
+  });
+
+  assert.equal(summary.overall, "degraded");
+  assert.deepEqual(
+    summary.services.map((service) => service.status),
+    ["warning", "error", "ok", "warning"]
+  );
+  assert.equal(summary.services[0].detail, "Pending connection");
+  assert.equal(summary.services[3].detail, "Missing N8N_WEBHOOK_URL");
 });
 
 test("tracks a sent bot message and recognizes it once", () => {

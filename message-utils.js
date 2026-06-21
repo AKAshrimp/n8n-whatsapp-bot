@@ -254,6 +254,47 @@ function createStableMessageId(message, fallback = {}) {
   )}-a${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
 }
 
+function createServiceStatusSummary({
+  whatsappConnected = false,
+  userId = "",
+  n8n = { ok: false, detail: "Not checked" },
+  qdrant = { ok: false, detail: "Not checked" },
+  webhookUrl = "",
+} = {}) {
+  const services = [
+    {
+      name: "WhatsApp Bridge",
+      status: whatsappConnected ? "ok" : "warning",
+      detail: whatsappConnected
+        ? `Connected${userId ? ` as ${normalizeText(userId)}` : ""}`
+        : "Pending connection",
+    },
+    {
+      name: "n8n",
+      status: n8n.ok ? "ok" : "error",
+      detail: normalizeText(n8n.detail) || (n8n.ok ? "healthy" : "unavailable"),
+    },
+    {
+      name: "Qdrant",
+      status: qdrant.ok ? "ok" : "error",
+      detail:
+        normalizeText(qdrant.detail) || (qdrant.ok ? "healthy" : "unavailable"),
+    },
+    {
+      name: "n8n Webhook",
+      status: webhookUrl ? "ok" : "warning",
+      detail: webhookUrl ? "Configured" : "Missing N8N_WEBHOOK_URL",
+    },
+  ];
+
+  return {
+    overall: services.every((service) => service.status === "ok")
+      ? "ok"
+      : "degraded",
+    services,
+  };
+}
+
 
 function imageExtensionForMimeType(mimetype) {
   const normalized = normalizeText(mimetype).toLowerCase().split(";")[0];
@@ -319,6 +360,7 @@ module.exports = {
   createAllowedGroupSettingsStore,
   createHistoryImportDecision,
   createOutgoingMessageTracker,
+  createServiceStatusSummary,
   createStableMessageId,
   createTextHash,
   formatGroupList,
