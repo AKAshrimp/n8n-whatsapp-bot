@@ -1,6 +1,6 @@
 [
   {
-    "updatedAt": "2026-06-21T12:38:02.162Z",
+    "updatedAt": "2026-06-21T13:00:00.762Z",
     "createdAt": "2026-06-17T13:25:18.364Z",
     "id": "jDBJXokbk9qfD9lt",
     "name": "n8n RAG Whatsapp Chatbot Better Version",
@@ -496,7 +496,7 @@
       },
       {
         "parameters": {
-          "jsCode": "const input = $(\"parse web search decision\").first().json;\nconst braveOutput = $input.first().json;\nconst messages = Array.isArray(input.messages) ? [...input.messages] : [];\nconst STRONG_RESPONSE_MODEL = \"deepseek-v4-pro\";\n\nfunction stripHtml(value) {\n  return String(value ?? \"\")\n    .replace(/<[^>]*>/g, \"\")\n    .replace(/&quot;/g, '\"')\n    .replace(/&#x27;/g, \"'\")\n    .replace(/&amp;/g, \"&\")\n    .trim();\n}\n\nfunction normalizeText(value) {\n  if (typeof value === \"string\") return stripHtml(value);\n  if (Array.isArray(value)) return value.map(normalizeText).filter(Boolean).join(\"\\n\\n\");\n  if (value && typeof value === \"object\") {\n    return [\n      value.title,\n      value.description,\n      value.snippet,\n      value.text,\n      value.content,\n      value.url ? \"Source: \" + value.url : \"\"\n    ].map(stripHtml).filter(Boolean).join(\"\\n\");\n  }\n  return \"\";\n}\n\nfunction firstText(values) {\n  for (const value of values) {\n    const text = normalizeText(value);\n    if (text) return text;\n  }\n  return \"\";\n}\n\nconst llmContext = firstText([\n  braveOutput.context,\n  braveOutput.full_content,\n  braveOutput.llm_context,\n  braveOutput.content,\n  braveOutput.snippets,\n  braveOutput.results\n]);\n\nconst legacyResults = input.webSearch?.results ?? braveOutput.webSearch?.results ?? [];\nconst legacyFaq = input.webSearch?.faq ?? braveOutput.webSearch?.faq ?? [];\n\nconst faqLines = legacyFaq.map((item, index) =>\n  String(index + 1) +\n    \". Q: \" +\n    stripHtml(item.question) +\n    \"\\n   A: \" +\n    stripHtml(item.answer) +\n    \"\\n   Source: \" +\n    item.url\n);\n\nconst resultLines = legacyResults.map((item, index) =>\n  String(item.rank ?? index + 1) +\n    \". \" +\n    stripHtml(item.title) +\n    (item.age ? \" (\" + item.age + \")\" : \"\") +\n    \"\\n   Summary: \" +\n    stripHtml(item.description) +\n    (item.extra_snippets?.length ? \"\\n   Extra: \" + item.extra_snippets.map(stripHtml).join(\" \") : \"\") +\n    \"\\n   Source: \" +\n    item.url\n);\n\nconst webSearchContext = llmContext\n  ? \"External web search LLM Context. Use only this extracted content for latest, price, status, news, API, product, or factual web-dependent questions. Add brief sources when useful:\\n\\n\" + llmContext\n  : resultLines.length || faqLines.length\n    ? \"External web search results. Use only these summaries for latest, price, status, news, API, product, or factual web-dependent questions. Do not pretend you opened full pages. Add brief sources when useful:\\n\\n\" +\n      [...faqLines, ...resultLines].join(\"\\n\\n\")\n    : input.webSearch?.shouldSearch\n      ? \"External web search was requested, but no usable search context was returned. Do not invent latest information.\"\n      : \"\";\n\nif (webSearchContext && messages.length > 0) {\n  const lastIndex = messages.length - 1;\n  messages[lastIndex] = {\n    ...messages[lastIndex],\n    content: String(messages[lastIndex].content ?? \"\") + \"\\n\\n\" + webSearchContext\n  };\n}\n\nreturn [\n  {\n    json: {\n      ...input,\n      webSearch: {\n        ...input.webSearch,\n        ok: Boolean(webSearchContext),\n        provider: \"brave_llm_context\",\n        raw: braveOutput\n      },\n      messages,\n      webSearchContext,\n      responseModel: webSearchContext || input.webSearch?.shouldSearch\n        ? STRONG_RESPONSE_MODEL\n        : input.responseModel\n    }\n  }\n];"
+          "jsCode": "const input = $(\"assemble LLM messages\").first().json;\nconst braveOutput = $input.first().json;\nconst messages = Array.isArray(input.messages) ? [...input.messages] : [];\nconst STRONG_RESPONSE_MODEL = \"deepseek-v4-pro\";\n\nfunction stripHtml(value) {\n  return String(value ?? \"\")\n    .replace(/<[^>]*>/g, \"\")\n    .replace(/&quot;/g, '\"')\n    .replace(/&#x27;/g, \"'\")\n    .replace(/&amp;/g, \"&\")\n    .trim();\n}\n\nfunction normalizeText(value) {\n  if (typeof value === \"string\") return stripHtml(value);\n  if (Array.isArray(value)) return value.map(normalizeText).filter(Boolean).join(\"\\n\\n\");\n  if (value && typeof value === \"object\") {\n    return [\n      value.title,\n      value.description,\n      value.snippet,\n      value.text,\n      value.content,\n      value.url ? \"Source: \" + value.url : \"\"\n    ].map(stripHtml).filter(Boolean).join(\"\\n\");\n  }\n  return \"\";\n}\n\nfunction firstText(values) {\n  for (const value of values) {\n    const text = normalizeText(value);\n    if (text) return text;\n  }\n  return \"\";\n}\n\nconst llmContext = firstText([\n  braveOutput.context,\n  braveOutput.full_content,\n  braveOutput.llm_context,\n  braveOutput.content,\n  braveOutput.snippets,\n  braveOutput.results\n]);\n\nconst legacyResults = input.webSearch?.results ?? braveOutput.webSearch?.results ?? [];\nconst legacyFaq = input.webSearch?.faq ?? braveOutput.webSearch?.faq ?? [];\n\nconst faqLines = legacyFaq.map((item, index) =>\n  String(index + 1) +\n    \". Q: \" +\n    stripHtml(item.question) +\n    \"\\n   A: \" +\n    stripHtml(item.answer) +\n    \"\\n   Source: \" +\n    item.url\n);\n\nconst resultLines = legacyResults.map((item, index) =>\n  String(item.rank ?? index + 1) +\n    \". \" +\n    stripHtml(item.title) +\n    (item.age ? \" (\" + item.age + \")\" : \"\") +\n    \"\\n   Summary: \" +\n    stripHtml(item.description) +\n    (item.extra_snippets?.length ? \"\\n   Extra: \" + item.extra_snippets.map(stripHtml).join(\" \") : \"\") +\n    \"\\n   Source: \" +\n    item.url\n);\n\nconst webSearchContext = llmContext\n  ? \"External web search LLM Context. Use only this extracted content for latest, price, status, news, API, product, or factual web-dependent questions. Add brief sources when useful:\\n\\n\" + llmContext\n  : resultLines.length || faqLines.length\n    ? \"External web search results. Use only these summaries for latest, price, status, news, API, product, or factual web-dependent questions. Do not pretend you opened full pages. Add brief sources when useful:\\n\\n\" +\n      [...faqLines, ...resultLines].join(\"\\n\\n\")\n    : input.webSearch?.shouldSearch\n      ? \"External web search was requested, but no usable search context was returned. Do not invent latest information.\"\n      : \"\";\n\nif (webSearchContext && messages.length > 0) {\n  const lastIndex = messages.length - 1;\n  messages[lastIndex] = {\n    ...messages[lastIndex],\n    content: String(messages[lastIndex].content ?? \"\") + \"\\n\\n\" + webSearchContext\n  };\n}\n\nreturn [\n  {\n    json: {\n      ...input,\n      webSearch: {\n        ...input.webSearch,\n        ok: Boolean(webSearchContext),\n        provider: \"brave_llm_context\",\n        raw: braveOutput\n      },\n      messages,\n      webSearchContext,\n      responseModel: webSearchContext || input.webSearch?.shouldSearch\n        ? STRONG_RESPONSE_MODEL\n        : input.responseModel\n    }\n  }\n];"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -1313,9 +1313,9 @@
       "templateCredsSetupCompleted": true
     },
     "pinData": {},
-    "versionId": "df124c77-c78a-4d51-850a-050a0d6f2e65",
-    "activeVersionId": "df124c77-c78a-4d51-850a-050a0d6f2e65",
-    "versionCounter": 239,
+    "versionId": "8dacc9a9-ecd0-48f9-b6f6-ac5c4b3575a9",
+    "activeVersionId": "8dacc9a9-ecd0-48f9-b6f6-ac5c4b3575a9",
+    "versionCounter": 240,
     "triggerCount": 1,
     "tags": [],
     "shared": [
@@ -1337,6 +1337,9 @@
         }
       }
     ],
-    "versionMetadata": null
+    "versionMetadata": {
+      "name": "Version 8dacc9a9",
+      "description": ""
+    }
   }
 ]
