@@ -1,17 +1,17 @@
 [
   {
-    "updatedAt": "2026-06-17T18:12:05.997Z",
+    "updatedAt": "2026-06-21T12:38:02.162Z",
     "createdAt": "2026-06-17T13:25:18.364Z",
     "id": "jDBJXokbk9qfD9lt",
     "name": "n8n RAG Whatsapp Chatbot Better Version",
     "description": null,
-    "active": false,
+    "active": true,
     "isArchived": false,
     "nodes": [
       {
         "parameters": {
           "httpMethod": "POST",
-          "path": "7232edf7-cbc7-43d4-9395-40d1f836994c",
+          "path": "whatsapp-trigger",
           "options": {}
         },
         "type": "n8n-nodes-base.webhook",
@@ -26,13 +26,13 @@
       },
       {
         "parameters": {
-          "jsCode": "const body = $(\"Webhook\").first().json.body;\nconst semanticSearchResult = $(\"qdrant search memory\").first().json.result;\nconst semanticResults = Array.isArray(semanticSearchResult)\n  ? semanticSearchResult\n  : semanticSearchResult?.points ?? [];\nconst profilePoints = $(\"qdrant scroll profiles\").first().json.result?.points ?? [];\nconst recentReplyContextPoints = $(\"qdrant scroll recent reply context\").first().json.result?.points ?? [];\nconst staticData = $getWorkflowStaticData(\"global\");\nconst MAX_SHORT_TERM_AI_TURNS = 6;\nconst SHORT_TERM_AI_TURN_TTL_MS = 6 * 60 * 60 * 1000;\nconst shortTermKey = [body.groupId, body.userId].filter(Boolean).join(\":\");\nconst aiTurnBuffer = staticData.aiTurnBuffer ?? {};\nstaticData.aiTurnBuffer = aiTurnBuffer;\n\nconst shortTermAiTurns = (\n  Array.isArray(aiTurnBuffer[shortTermKey]) ? aiTurnBuffer[shortTermKey] : []\n)\n  .filter((turn) => Date.now() - Number(turn.savedAt ?? 0) <= SHORT_TERM_AI_TURN_TTL_MS)\n  .slice(-MAX_SHORT_TERM_AI_TURNS);\n\nreturn [\n  {\n    json: {\n      ...body,\n      semanticResults,\n      profilePoints,\n      recentReplyContextPoints,\n      shortTermAiTurns,\n    },\n  },\n];"
+          "jsCode": "const body = $(\"Webhook\").first().json.body;\n\nlet combinedRouting = {};\ntry {\n  combinedRouting = $(\"parse combined routing\").first().json ?? {};\n} catch (_err) {\n  combinedRouting = {};\n}\n\nconst rerankedSemanticResults = combinedRouting.semanticResults ?? [];\nconst semanticSearchResult = $(\"qdrant search memory\").first().json.result;\nconst originalSemanticResults = Array.isArray(semanticSearchResult)\n  ? semanticSearchResult\n  : semanticSearchResult?.points ?? [];\n\nconst hasRerankedResults = Array.isArray(rerankedSemanticResults) ? rerankedSemanticResults.length > 0 : false;\nconst semanticResults = hasRerankedResults ? rerankedSemanticResults : originalSemanticResults;\n\nconst webSearch = combinedRouting.webSearch ?? {\n  shouldSearch: false,\n  query: body.text ?? \"\",\n  reason: \"combined-router-unavailable\",\n  results: [],\n};\n\nconst profilePoints = $(\"qdrant scroll profiles\").first().json.result?.points ?? [];\nconst recentReplyContextPoints = $(\"qdrant scroll recent reply context\").first().json.result?.points ?? [];\n\nconst staticData = $getWorkflowStaticData(\"global\");\nconst MAX_SHORT_TERM_AI_TURNS = 6;\nconst SHORT_TERM_AI_TURN_TTL_MS = 6 * 60 * 60 * 1000;\nconst shortTermKey = [body.groupId, body.userId].filter(Boolean).join(\":\");\nconst aiTurnBuffer = staticData.aiTurnBuffer ?? {};\nstaticData.aiTurnBuffer = aiTurnBuffer;\n\nconst shortTermAiTurns = (\n  Array.isArray(aiTurnBuffer[shortTermKey]) ? aiTurnBuffer[shortTermKey] : []\n)\n  .filter((turn) => Date.now() - Number(turn.savedAt ?? 0) <= SHORT_TERM_AI_TURN_TTL_MS)\n  .slice(-MAX_SHORT_TERM_AI_TURNS);\n\nreturn [\n  {\n    json: {\n      ...body,\n      semanticResults,\n      profilePoints,\n      recentReplyContextPoints,\n      shortTermAiTurns,\n      webSearch,\n    },\n  },\n];"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          480,
-          -464
+          432,
+          -432
         ],
         "id": "dfc46869-aba5-4321-b481-94cfdea04961",
         "name": "prepare memory"
@@ -59,8 +59,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.4,
         "position": [
-          2448,
-          -224
+          1856,
+          -176
         ],
         "id": "525b6401-5d16-4dab-b3ee-3485106864c4",
         "name": "return message"
@@ -72,8 +72,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          2240,
-          -432
+          1648,
+          -384
         ],
         "id": "d2d98626-e35e-4d50-a960-c294f9f7479a",
         "name": "save memory"
@@ -189,8 +189,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.4,
         "position": [
-          240,
-          512
+          208,
+          384
         ],
         "id": "6cf34a67-d88a-424d-add4-3b3ad3a2e819",
         "name": "Gpt-image2"
@@ -229,8 +229,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.4,
         "position": [
-          528,
-          432
+          496,
+          304
         ],
         "id": "11f6b64f-cdd8-47c6-b182-f7778962993f",
         "name": "return image"
@@ -263,8 +263,8 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.3,
         "position": [
-          -240,
-          432
+          -272,
+          304
         ],
         "id": "2867b391-ccc2-4192-a636-3168e120b207",
         "name": "If"
@@ -276,8 +276,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          16,
-          400
+          -16,
+          272
         ],
         "id": "67381863-cf11-4711-960d-974bb038bbd8",
         "name": "prepare image binary"
@@ -323,8 +323,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.4,
         "position": [
-          240,
-          352
+          208,
+          224
         ],
         "id": "8ff09ffc-967f-4f19-959e-b98c1ec91732",
         "name": "edit Gpt image2",
@@ -337,8 +337,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          -240,
-          800
+          -256,
+          624
         ],
         "id": "aea706db-7cfa-4296-8a74-d2c550000268",
         "name": "prepare memory point"
@@ -368,8 +368,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.4,
         "position": [
-          0,
-          800
+          -16,
+          624
         ],
         "id": "60a13cde-04cd-4f3e-aecf-8615f7e25a45",
         "name": "qwen embed record"
@@ -389,8 +389,8 @@
         "type": "n8n-nodes-qdrant.qdrant",
         "typeVersion": 1,
         "position": [
-          240,
-          800
+          224,
+          624
         ],
         "id": "41feb411-8f97-4eb3-a4ff-d0fb58efe5bc",
         "name": "qdrant upsert memory",
@@ -426,7 +426,7 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.4,
         "position": [
-          -256,
+          -480,
           -464
         ],
         "id": "f8fd466f-f79e-4c33-bae6-7f9e244f2a61",
@@ -448,7 +448,7 @@
         "type": "n8n-nodes-qdrant.qdrant",
         "typeVersion": 1,
         "position": [
-          -256,
+          -224,
           -608
         ],
         "id": "64fb279d-4181-4747-a773-49011a8503a7",
@@ -488,8 +488,8 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.3,
         "position": [
-          1504,
-          -464
+          912,
+          -416
         ],
         "id": "a4e29d86-f397-43eb-83b3-2fc056cf141a",
         "name": "needs web search"
@@ -501,24 +501,11 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          1792,
-          -464
+          1200,
+          -416
         ],
         "id": "3a3080b3-e2cc-4918-b39a-9dd40bae8276",
         "name": "append web search context"
-      },
-      {
-        "parameters": {
-          "jsCode": "const input = $(\"prepare memory\").first().json;\nconst classifierOutput = $input.first().json;\nconst raw = classifierOutput.text ?? classifierOutput.output ?? classifierOutput.response ?? classifierOutput.message?.content ?? classifierOutput.choices?.[0]?.message?.content ?? \"\";\n\nfunction parseJson(value) {\n  const text = String(value || \"\").trim();\n  const fence = String.fromCharCode(96).repeat(3);\n  const fenced = text.match(new RegExp(fence + \"(?:json)?\\\\\\\\s*([\\\\\\\\s\\\\\\\\S]*?)\" + fence, \"i\"));\n  const candidate = fenced ? fenced[1] : text;\n  const objectMatch = candidate.match(/\\{[\\s\\S]*\\}/);\n  if (!objectMatch) throw new Error(\"classifier returned no json object\");\n  return JSON.parse(objectMatch[0]);\n}\n\nlet decision;\ntry {\n  decision = parseJson(raw);\n} catch (error) {\n  decision = {\n    shouldSearch: false,\n    query: input.text || \"\",\n    reason: \"classifier-unavailable: \" + error.message,\n  };\n}\n\nconst query = String(decision.query || input.text || \"\")\n  .replace(/@ai/gi, \"\")\n  .replace(/\\s+/g, \" \")\n  .trim()\n  .slice(0, 180);\n\nreturn [\n  {\n    json: {\n      ...input,\n      webSearch: {\n        shouldSearch: Boolean(decision.shouldSearch),\n        reason: String(decision.reason || \"\"),\n        query,\n        classifierRaw: raw,\n        results: [],\n      },\n    },\n  },\n];"
-        },
-        "type": "n8n-nodes-base.code",
-        "typeVersion": 2,
-        "position": [
-          1296,
-          -464
-        ],
-        "id": "9dbc88e1-b175-4632-8b6f-17f08646b666",
-        "name": "parse web search decision"
       },
       {
         "parameters": {
@@ -527,8 +514,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          528,
-          288
+          496,
+          160
         ],
         "id": "bf1306fc-d045-40c3-8590-0b6c3dabc442",
         "name": "prepare image error message"
@@ -549,7 +536,7 @@
         "type": "n8n-nodes-qdrant.qdrant",
         "typeVersion": 1,
         "position": [
-          -256,
+          -224,
           -304
         ],
         "id": "58cfa67d-ddd9-4d6b-8975-31298f182feb",
@@ -565,7 +552,7 @@
         "parameters": {
           "content": "## Main Chat Brain\nInput, RAG retrieval, member context, web check, DeepSeek, short-term memory, and WhatsApp reply.",
           "height": 928,
-          "width": 2984,
+          "width": 2424,
           "color": 7
         },
         "id": "daba7dc8-e492-43a5-9c04-8aad9b922307",
@@ -589,15 +576,15 @@
         "type": "n8n-nodes-base.stickyNote",
         "typeVersion": 1,
         "position": [
-          -304,
-          224
+          -336,
+          96
         ]
       },
       {
         "parameters": {
           "content": "## Memory & Status\nRecord normal messages into Qdrant and answer the memory status command.",
           "height": 260,
-          "width": 1280,
+          "width": 784,
           "color": 7
         },
         "id": "48275ed8-faca-4f65-965c-871d357b2552",
@@ -605,8 +592,8 @@
         "type": "n8n-nodes-base.stickyNote",
         "typeVersion": 1,
         "position": [
-          -304,
-          704
+          -336,
+          528
         ]
       },
       {
@@ -621,8 +608,8 @@
         "type": "n8n-nodes-base.stickyNote",
         "typeVersion": 1,
         "position": [
-          -928,
-          -112
+          -896,
+          448
         ]
       },
       {
@@ -646,8 +633,8 @@
         "type": "@brave/n8n-nodes-brave-search.braveSearch",
         "typeVersion": 1,
         "position": [
-          1632,
-          -624
+          1040,
+          -576
         ],
         "id": "55f62af2-6c2a-4f9a-85d7-f42d474ceb07",
         "name": "Brave Search",
@@ -667,8 +654,8 @@
         "type": "@n8n/n8n-nodes-langchain.chainLlm",
         "typeVersion": 1.9,
         "position": [
-          1952,
-          -464
+          1360,
+          -416
         ],
         "id": "9511f47b-0aa7-4d1f-b0de-7de9c250f90b",
         "name": "Basic LLM Chain"
@@ -681,8 +668,8 @@
         "type": "@n8n/n8n-nodes-langchain.lmChatDeepSeek",
         "typeVersion": 1,
         "position": [
-          1952,
-          -320
+          1360,
+          -192
         ],
         "id": "34619fcc-5f7f-4bc9-a7ae-25bd7f405828",
         "name": "DeepSeek Chat Model",
@@ -703,14 +690,14 @@
             "value": "whatsapp_memory"
           },
           "query": "={{ JSON.stringify($json.data?.[0]?.embedding) }}",
-          "limit": 8,
+          "limit": 20,
           "filter": "={{ JSON.stringify({ must: [{ key: \"groupId\", match: { value: $(\"Webhook\").first().json.body.groupId } }] }) }}",
           "requestOptions": {}
         },
         "type": "n8n-nodes-qdrant.qdrant",
         "typeVersion": 1,
         "position": [
-          0,
+          -224,
           -464
         ],
         "id": "b616dc62-cb61-47bf-8ab0-2acaceed7c21",
@@ -724,41 +711,6 @@
       },
       {
         "parameters": {
-          "promptType": "define",
-          "text": "={{ [\n  \"You are a web-search routing classifier for a WhatsApp AI bot.\",\n  \"Return JSON only. No markdown. Shape: {\\\"shouldSearch\\\": boolean, \\\"query\\\": string, \\\"reason\\\": string}.\",\n  \"Only decide whether the answer depends on external or current information.\",\n  \"Search is needed for current news, prices, status, APIs, versions, model comparisons, product or service recommendations, software or game discovery, public people or companies, local availability, business hours, promotions, or explicit search requests.\",\n  \"Search is not needed for casual chat, translation, rewriting, creative writing, general social advice, memory questions, questions already answerable from group memory or member profiles, or jokes.\",\n  \"For advice requests, search only when the advice depends on current products, games, APIs, prices, news, or market information.\",\n  \"The query must be a short Brave Search query and must not include @ai.\",\n  \"\",\n  \"User question:\",\n  String($json.text ? $json.text : \"\"),\n  \"\",\n  \"Decide whether web search is needed. JSON only.\"\n].join(\"\\n\") }}",
-          "batching": {}
-        },
-        "type": "@n8n/n8n-nodes-langchain.chainLlm",
-        "typeVersion": 1.9,
-        "position": [
-          976,
-          -464
-        ],
-        "id": "cbc59d48-d891-481a-88ae-19600e1db68f",
-        "name": "Web Search Classifier Chain"
-      },
-      {
-        "parameters": {
-          "model": "deepseek-v4-pro",
-          "options": {}
-        },
-        "type": "@n8n/n8n-nodes-langchain.lmChatDeepSeek",
-        "typeVersion": 1,
-        "position": [
-          976,
-          -256
-        ],
-        "id": "f7cc7ad6-e0e9-451f-835c-9f1a6713523d",
-        "name": "DeepSeek Search Classifier Model",
-        "credentials": {
-          "deepSeekApi": {
-            "id": "CsiJm23ij01b9wBt",
-            "name": "DeepSeek account"
-          }
-        }
-      },
-      {
-        "parameters": {
           "mode": "combine",
           "combineBy": "combineByPosition",
           "numberInputs": 3,
@@ -767,8 +719,8 @@
         "type": "n8n-nodes-base.merge",
         "typeVersion": 3.2,
         "position": [
-          288,
-          -480
+          272,
+          -448
         ],
         "id": "f4104962-89da-407b-b628-4027d3b99292",
         "name": "Merge"
@@ -778,13 +730,16 @@
           "operation": "createCollection",
           "collectionName": "whatsapp_memory",
           "vectors": "{\n  \"size\":1024,\n  \"distance\":\"Cosine\"\n}",
+          "shardNumber": {},
+          "replicationFactor": {},
+          "writeConsistencyFactor": {},
           "requestOptions": {}
         },
         "type": "n8n-nodes-qdrant.qdrant",
         "typeVersion": 1,
         "position": [
-          -896,
-          -16
+          -864,
+          544
         ],
         "id": "367d219a-1ee5-4350-be61-1778637f9ef7",
         "name": "Create Collection",
@@ -802,76 +757,154 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          704,
-          -96
+          656,
+          -64
         ],
         "id": "8ab041cf-acb2-4f46-916b-80d5998c5432",
         "name": "classify request"
       },
       {
         "parameters": {
-          "jsCode": "const body = $json;\nconst fs = require(\"fs\");\nconst PROMPTS_PATH = \"/home/node/.n8n/private-prompts/memory-prompts.json\";\nconst promptConfig = JSON.parse(fs.readFileSync(PROMPTS_PATH, \"utf8\"));\nconst profilePoints = body.profilePoints ?? [];\nconst memberProfileMemories = profilePoints\n  .filter((item) => item.payload?.type === \"member_profile\")\n  .filter((item) => item.payload?.text)\n  .map((item) => item.payload);\nfunction normalizeForMatch(value) {\n  return String(value || \"\")\n    .toLowerCase()\n    .replace(/[^\\p{L}\\p{N}@._\\-\\s]/gu, \" \")\n    .replace(/\\s+/g, \" \")\n    .trim();\n}\n\nconst memberAliasMap = [\n  {\n    profileHints: [\"vincy\", promptConfig.strings[\"select_member_profiles_0\"]],\n    aliases: [\"vincy\", promptConfig.strings[\"select_member_profiles_1\"], promptConfig.strings[\"select_member_profiles_2\"], promptConfig.strings[\"select_member_profiles_3\"], promptConfig.strings[\"select_member_profiles_4\"]],\n  },\n  {\n    profileHints: [\"cvvc\", \"kelvin\", \"kelvincheng\", \"kelvin cheng\"],\n    aliases: [\"kelvin\", \"cvvc\", \"kelvincheng\", \"kelvin cheng\"],\n  },\n  {\n    profileHints: [\"riley\", promptConfig.strings[\"select_member_profiles_5\"], promptConfig.strings[\"select_member_profiles_6\"]],\n    aliases: [\"riley\", promptConfig.strings[\"select_member_profiles_7\"], promptConfig.strings[\"select_member_profiles_8\"]],\n  },\n  {\n    profileHints: [\"stone\", promptConfig.strings[\"select_member_profiles_9\"]],\n    aliases: [\"stone\", promptConfig.strings[\"select_member_profiles_10\"], promptConfig.strings[\"select_member_profiles_11\"], promptConfig.strings[\"select_member_profiles_12\"], promptConfig.strings[\"select_member_profiles_13\"]],\n  },\n];\n\nfunction chineseAliasCharacters(value) {\n  return Array.from(String(value || \"\")).filter((char) => /[\\p{Script=Han}]/u.test(char));\n}\n\nfunction profileMatchTokens(profile) {\n  const userName = normalizeForMatch(profile.userName);\n  const userId = normalizeForMatch(profile.userId);\n  const firstLine = normalizeForMatch(String(profile.text || \"\").split(\"\\n\")[0]);\n  const fullProfileText = normalizeForMatch([profile.userName, profile.userId, profile.text].join(\" \"));\n  const nameParts = userName.split(\" \").filter((token) => token.length >= 3);\n  const mappedAliases = memberAliasMap\n    .filter((entry) =>\n      entry.profileHints.some((hint) => fullProfileText.includes(normalizeForMatch(hint)))\n    )\n    .flatMap((entry) => entry.aliases)\n    .flatMap((alias) => [alias, ...chineseAliasCharacters(alias)])\n    .map(normalizeForMatch);\n  return Array.from(\n    new Set([userName, userId, firstLine, ...nameParts, ...mappedAliases].filter((token) => token.length >= 1))\n  );\n}\nfunction isImitationRequest(text) {\n  return /(模仿|扮|扮演|學|学|imitate|impersonate|in the style of)/i.test(String(text || \"\"));\n}\nfunction selectOwnMemberProfileForReplyAssist(profiles, inputBody) {\n  const candidates = [\n    inputBody.userId,\n    inputBody.author,\n    inputBody.from,\n    inputBody.fromMe,\n  ]\n    .map(normalizeForMatch)\n    .filter(Boolean);\n\n  return profiles.find((profile) => {\n    const tokens = [\n      profile.userId,\n      profile.userName,\n      String(profile.text || \"\").split(\"\\n\")[0],\n    ].map(normalizeForMatch);\n    return tokens.some((token) => token && candidates.some((candidate) => candidate.includes(token) || token.includes(candidate)));\n  }) || null;\n}\n\nfunction selectMemberProfilesForQuestion(profiles, question) {\n  if (!isImitationRequest(question)) {\n    return {\n      selectedProfiles: [],\n      matchedTargetName: \"\",\n      selectionNote: promptConfig.strings[\"select_member_profiles_14\"],\n    };\n  }\n\n  const normalizedQuestion = normalizeForMatch(question);\n  const matches = profiles.filter((profile) =>\n    profileMatchTokens(profile).some((token) => normalizedQuestion.includes(token))\n  );\n\n  if (matches.length === 1) {\n    return {\n      selectedProfiles: matches,\n      matchedTargetName: matches[0].userName || matches[0].userId || \"\",\n      selectionNote:\n        promptConfig.strings[\"select_member_profiles_15\"],\n    };\n  }\n\n  return {\n    selectedProfiles: [],\n    matchedTargetName: \"\",\n    selectionNote:\n      promptConfig.strings[\"select_member_profiles_16\"],\n  };\n}\n\nconst isReplyAssist = body.isReplyAssist;\nconst replyAssistTargetProfile = isReplyAssist\n  ? selectOwnMemberProfileForReplyAssist(memberProfileMemories, body)\n  : null;\nconst memberProfileSelection = selectMemberProfilesForQuestion(memberProfileMemories, body.text);\nconst selectedMemberProfileMemories = isReplyAssist && replyAssistTargetProfile\n  ? [replyAssistTargetProfile.text]\n  : memberProfileSelection.selectedProfiles.map((profile) => profile.text);\n\nreturn [{\n  json: {\n    ...body,\n    memberProfileMemories,\n    memberProfileSelection,\n    selectedMemberProfileMemories,\n    replyAssistTargetProfileRaw: replyAssistTargetProfile,\n  },\n}];"
+          "jsCode": "const body = $json;\nconst fs = require(\"fs\");\nconst PROMPTS_DIR = \"/home/node/.n8n/private-prompts\";\nconst PROMPTS_PATH = PROMPTS_DIR + \"/memory-prompts.json\";\nconst promptConfig = JSON.parse(fs.readFileSync(PROMPTS_PATH, \"utf8\"));\n\nfunction parsePromptMarkdownSections(text) {\n  const sections = {};\n  let currentKey = \"\";\n  for (const line of String(text || \"\").split(/\\r?\\n/)) {\n    const match = line.match(/^##\\s+([A-Za-z0-9_:-]+)\\s*$/);\n    if (match) {\n      currentKey = match[1];\n      sections[currentKey] = \"\";\n      continue;\n    }\n    if (currentKey) {\n      sections[currentKey] += (sections[currentKey] ? \"\\n\" : \"\") + line;\n    }\n  }\n  return Object.fromEntries(\n    Object.entries(sections).map(([key, value]) => [key, value.trim()])\n  );\n}\n\nfor (const fileName of [\n  \"member-profile-selection.md\",\n  \"semantic-memory.md\",\n  \"recent-context.md\",\n  \"persona-policy.md\",\n]) {\n  const filePath = PROMPTS_DIR + \"/\" + fileName;\n  if (fs.existsSync(filePath)) {\n    Object.assign(\n      promptConfig.strings,\n      parsePromptMarkdownSections(fs.readFileSync(filePath, \"utf8\"))\n    );\n  }\n}\nconst profilePoints = body.profilePoints ?? [];\nconst memberProfileMemories = profilePoints\n  .filter((item) => item.payload?.type === \"member_profile\")\n  .filter((item) => item.payload?.text)\n  .map((item) => item.payload);\nfunction normalizeForMatch(value) {\n  return String(value || \"\")\n    .toLowerCase()\n    .replace(/[^\\p{L}\\p{N}@._\\-\\s]/gu, \" \")\n    .replace(/\\s+/g, \" \")\n    .trim();\n}\n\nconst memberAliasMap = [\n  {\n    profileHints: [\"vincy\", promptConfig.strings[\"select_member_profiles_0\"]],\n    aliases: [\"vincy\", promptConfig.strings[\"select_member_profiles_1\"], promptConfig.strings[\"select_member_profiles_2\"], promptConfig.strings[\"select_member_profiles_3\"], promptConfig.strings[\"select_member_profiles_4\"]],\n  },\n  {\n    profileHints: [\"cvvc\", \"kelvin\", \"kelvincheng\", \"kelvin cheng\"],\n    aliases: [\"kelvin\", \"cvvc\", \"kelvincheng\", \"kelvin cheng\"],\n  },\n  {\n    profileHints: [\"riley\", promptConfig.strings[\"select_member_profiles_5\"], promptConfig.strings[\"select_member_profiles_6\"]],\n    aliases: [\"riley\", promptConfig.strings[\"select_member_profiles_7\"], promptConfig.strings[\"select_member_profiles_8\"]],\n  },\n  {\n    profileHints: [\"stone\", promptConfig.strings[\"select_member_profiles_9\"]],\n    aliases: [\"stone\", promptConfig.strings[\"select_member_profiles_10\"], promptConfig.strings[\"select_member_profiles_11\"], promptConfig.strings[\"select_member_profiles_12\"], promptConfig.strings[\"select_member_profiles_13\"]],\n  },\n];\n\nfunction chineseAliasCharacters(value) {\n  return Array.from(String(value || \"\")).filter((char) => /[\\p{Script=Han}]/u.test(char));\n}\n\nfunction profileMatchTokens(profile) {\n  const userName = normalizeForMatch(profile.userName);\n  const userId = normalizeForMatch(profile.userId);\n  const firstLine = normalizeForMatch(String(profile.text || \"\").split(\"\\n\")[0]);\n  const fullProfileText = normalizeForMatch([profile.userName, profile.userId, profile.text].join(\" \"));\n  const nameParts = userName.split(\" \").filter((token) => token.length >= 3);\n  const mappedAliases = memberAliasMap\n    .filter((entry) =>\n      entry.profileHints.some((hint) => fullProfileText.includes(normalizeForMatch(hint)))\n    )\n    .flatMap((entry) => entry.aliases)\n    .flatMap((alias) => [alias, ...chineseAliasCharacters(alias)])\n    .map(normalizeForMatch);\n  return Array.from(\n    new Set([userName, userId, firstLine, ...nameParts, ...mappedAliases].filter((token) => token.length >= 1))\n  );\n}\nfunction isImitationRequest(text) {\n  return /(模仿|扮|扮演|學|学|imitate|impersonate|in the style of)/i.test(String(text || \"\"));\n}\nfunction selectOwnMemberProfileForReplyAssist(profiles, inputBody) {\n  const candidates = [\n    inputBody.userId,\n    inputBody.author,\n    inputBody.from,\n    inputBody.fromMe,\n  ]\n    .map(normalizeForMatch)\n    .filter(Boolean);\n\n  return profiles.find((profile) => {\n    const tokens = [\n      profile.userId,\n      profile.userName,\n      String(profile.text || \"\").split(\"\\n\")[0],\n    ].map(normalizeForMatch);\n    return tokens.some((token) => token && candidates.some((candidate) => candidate.includes(token) || token.includes(candidate)));\n  }) || null;\n}\n\nfunction selectMemberProfilesForQuestion(profiles, question) {\n  if (!isImitationRequest(question)) {\n    return {\n      selectedProfiles: [],\n      matchedTargetName: \"\",\n      selectionNote: promptConfig.strings[\"select_member_profiles_14\"],\n    };\n  }\n\n  const normalizedQuestion = normalizeForMatch(question);\n  const matches = profiles.filter((profile) =>\n    profileMatchTokens(profile).some((token) => normalizedQuestion.includes(token))\n  );\n\n  if (matches.length === 1) {\n    return {\n      selectedProfiles: matches,\n      matchedTargetName: matches[0].userName || matches[0].userId || \"\",\n      selectionNote:\n        promptConfig.strings[\"select_member_profiles_15\"],\n    };\n  }\n\n  return {\n    selectedProfiles: [],\n    matchedTargetName: \"\",\n    selectionNote:\n      promptConfig.strings[\"select_member_profiles_16\"],\n  };\n}\n\nconst isReplyAssist = body.isReplyAssist;\nconst replyAssistTargetProfile = isReplyAssist\n  ? selectOwnMemberProfileForReplyAssist(memberProfileMemories, body)\n  : null;\nconst memberProfileSelection = selectMemberProfilesForQuestion(memberProfileMemories, body.text);\nconst selectedMemberProfileMemories = isReplyAssist && replyAssistTargetProfile\n  ? [replyAssistTargetProfile.text]\n  : memberProfileSelection.selectedProfiles.map((profile) => profile.text);\n\nreturn [{\n  json: {\n    ...body,\n    memberProfileMemories,\n    memberProfileSelection,\n    selectedMemberProfileMemories,\n    replyAssistTargetProfileRaw: replyAssistTargetProfile,\n  },\n}];"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          704,
-          -256
+          656,
+          -208
         ],
         "id": "dff2f7c0-568d-446a-8bda-1e3ad022fa51",
         "name": "select member profiles"
       },
       {
         "parameters": {
-          "jsCode": "const body = $json;\nconst fs = require(\"fs\");\nconst PROMPTS_PATH = \"/home/node/.n8n/private-prompts/memory-prompts.json\";\nconst promptConfig = JSON.parse(fs.readFileSync(PROMPTS_PATH, \"utf8\"));\nconst semanticResults = body.semanticResults ?? [];\nconst shouldExposeRawHistory = body.shouldExposeRawHistory;\nfunction formatPoint(item, index) {\n  const payload = item.payload ?? {};\n  const date = new Date(Number(payload.timestamp ?? 0) * 1000)\n    .toISOString()\n    .slice(0, 10);\n  const type = payload.type === \"ai_question\" ? \"AI question\" : payload.type || \"message\";\n  return String(index + 1) + \". [\" + type + \", \" + (payload.userName ?? payload.userId) + \", \" + date + \"] \" + payload.text;\n}\nconst memories = shouldExposeRawHistory\n  ? semanticResults\n      .filter((item) => item.payload?.text)\n      .map(formatPoint)\n  : [];\n\nconst memoryContext =\n  shouldExposeRawHistory\n    ? memories.length > 0\n      ? promptConfig.strings[\"format_semantic_memory_0\"] + memories.join(\"\\n\")\n      : promptConfig.strings[\"format_semantic_memory_1\"]\n    : promptConfig.strings[\"format_semantic_memory_2\"];\nreturn [{ json: { ...body, retrievedMemories: memories, memoryContext } }];"
+          "jsCode": "const body = $json;\nconst fs = require(\"fs\");\nconst PROMPTS_DIR = \"/home/node/.n8n/private-prompts\";\nconst PROMPTS_PATH = PROMPTS_DIR + \"/memory-prompts.json\";\nconst promptConfig = JSON.parse(fs.readFileSync(PROMPTS_PATH, \"utf8\"));\n\nfunction parsePromptMarkdownSections(text) {\n  const sections = {};\n  let currentKey = \"\";\n  for (const line of String(text || \"\").split(/\\r?\\n/)) {\n    const match = line.match(/^##\\s+([A-Za-z0-9_:-]+)\\s*$/);\n    if (match) {\n      currentKey = match[1];\n      sections[currentKey] = \"\";\n      continue;\n    }\n    if (currentKey) {\n      sections[currentKey] += (sections[currentKey] ? \"\\n\" : \"\") + line;\n    }\n  }\n  return Object.fromEntries(\n    Object.entries(sections).map(([key, value]) => [key, value.trim()])\n  );\n}\n\nfor (const fileName of [\n  \"member-profile-selection.md\",\n  \"semantic-memory.md\",\n  \"recent-context.md\",\n  \"persona-policy.md\",\n]) {\n  const filePath = PROMPTS_DIR + \"/\" + fileName;\n  if (fs.existsSync(filePath)) {\n    Object.assign(\n      promptConfig.strings,\n      parsePromptMarkdownSections(fs.readFileSync(filePath, \"utf8\"))\n    );\n  }\n}\nconst semanticResults = body.semanticResults ?? [];\nconst shouldExposeRawHistory = body.shouldExposeRawHistory;\nfunction formatPoint(item, index) {\n  const payload = item.payload ?? {};\n  const date = new Date(Number(payload.timestamp ?? 0) * 1000)\n    .toISOString()\n    .slice(0, 10);\n  const type = payload.type === \"ai_question\" ? \"AI question\" : payload.type || \"message\";\n  return String(index + 1) + \". [\" + type + \", \" + (payload.userName ?? payload.userId) + \", \" + date + \"] \" + payload.text;\n}\nconst memories = shouldExposeRawHistory\n  ? semanticResults\n      .filter((item) => item.payload?.text)\n      .map(formatPoint)\n  : [];\n\nconst memoryContext =\n  shouldExposeRawHistory\n    ? memories.length > 0\n      ? promptConfig.strings[\"format_semantic_memory_0\"] + memories.join(\"\\n\")\n      : promptConfig.strings[\"format_semantic_memory_1\"]\n    : promptConfig.strings[\"format_semantic_memory_2\"];\nreturn [{ json: { ...body, retrievedMemories: memories, memoryContext } }];"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          704,
-          -400
+          656,
+          -368
         ],
         "id": "09db1f4e-acc0-49c5-8884-780cf794aee0",
         "name": "format semantic memory"
       },
       {
         "parameters": {
-          "jsCode": "const body = $json;\nconst fs = require(\"fs\");\nconst PROMPTS_PATH = \"/home/node/.n8n/private-prompts/memory-prompts.json\";\nconst promptConfig = JSON.parse(fs.readFileSync(PROMPTS_PATH, \"utf8\"));\nconst shortTermAiTurns = body.shortTermAiTurns ?? [];\nconst recentReplyContextPoints = body.recentReplyContextPoints ?? [];\nconst shortTermAiContext =\n  shortTermAiTurns.length > 0\n    ? promptConfig.strings[\"format_recent_context_0\"] +\n      shortTermAiTurns\n        .map((turn, index) => String(index + 1) + \". User: \" + turn.question + \"\\nAI: \" + turn.answer)\n        .join(\"\\n\\n\")\n    : promptConfig.strings[\"format_recent_context_1\"];\n\nconst recentReplyMessages = recentReplyContextPoints\n  .map((item) => item.payload ?? {})\n  .filter((payload) => payload.text)\n  .sort((a, b) => Number(a.timestamp ?? 0) - Number(b.timestamp ?? 0))\n  .slice(-80);\n\nfunction formatTime(seconds) {\n  const date = new Date(Number(seconds || 0) * 1000);\n  return date.toISOString().slice(11, 16);\n}\n\nconst recentReplyContext =\n  recentReplyMessages.length > 0\n    ? promptConfig.strings[\"format_recent_context_2\"] +\n      recentReplyMessages\n        .map((payload) => \"[\" + formatTime(payload.timestamp) + \"] \" + (payload.userName || payload.userId || \"unknown\") + \": \" + payload.text)\n        .join(\"\\n\")\n    : promptConfig.strings[\"format_recent_context_3\"];\nreturn [{ json: { ...body, retrievedRecentReplyContext: recentReplyMessages, shortTermAiContext, recentReplyContext } }];"
+          "jsCode": "const body = $json;\nconst fs = require(\"fs\");\nconst PROMPTS_DIR = \"/home/node/.n8n/private-prompts\";\nconst PROMPTS_PATH = PROMPTS_DIR + \"/memory-prompts.json\";\nconst promptConfig = JSON.parse(fs.readFileSync(PROMPTS_PATH, \"utf8\"));\n\nfunction parsePromptMarkdownSections(text) {\n  const sections = {};\n  let currentKey = \"\";\n  for (const line of String(text || \"\").split(/\\r?\\n/)) {\n    const match = line.match(/^##\\s+([A-Za-z0-9_:-]+)\\s*$/);\n    if (match) {\n      currentKey = match[1];\n      sections[currentKey] = \"\";\n      continue;\n    }\n    if (currentKey) {\n      sections[currentKey] += (sections[currentKey] ? \"\\n\" : \"\") + line;\n    }\n  }\n  return Object.fromEntries(\n    Object.entries(sections).map(([key, value]) => [key, value.trim()])\n  );\n}\n\nfor (const fileName of [\n  \"member-profile-selection.md\",\n  \"semantic-memory.md\",\n  \"recent-context.md\",\n  \"persona-policy.md\",\n]) {\n  const filePath = PROMPTS_DIR + \"/\" + fileName;\n  if (fs.existsSync(filePath)) {\n    Object.assign(\n      promptConfig.strings,\n      parsePromptMarkdownSections(fs.readFileSync(filePath, \"utf8\"))\n    );\n  }\n}\nconst shortTermAiTurns = body.shortTermAiTurns ?? [];\nconst recentReplyContextPoints = body.recentReplyContextPoints ?? [];\nconst shortTermAiContext =\n  shortTermAiTurns.length > 0\n    ? promptConfig.strings[\"format_recent_context_0\"] +\n      shortTermAiTurns\n        .map((turn, index) => String(index + 1) + \". User: \" + turn.question + \"\\nAI: \" + turn.answer)\n        .join(\"\\n\\n\")\n    : promptConfig.strings[\"format_recent_context_1\"];\n\nconst recentReplyMessages = recentReplyContextPoints\n  .map((item) => item.payload ?? {})\n  .filter((payload) => payload.text)\n  .sort((a, b) => Number(a.timestamp ?? 0) - Number(b.timestamp ?? 0))\n  .slice(-80);\n\nfunction formatTime(seconds) {\n  const date = new Date(Number(seconds || 0) * 1000);\n  return date.toISOString().slice(11, 16);\n}\n\nconst recentReplyContext =\n  recentReplyMessages.length > 0\n    ? promptConfig.strings[\"format_recent_context_2\"] +\n      recentReplyMessages\n        .map((payload) => \"[\" + formatTime(payload.timestamp) + \"] \" + (payload.userName || payload.userId || \"unknown\") + \": \" + payload.text)\n        .join(\"\\n\")\n    : promptConfig.strings[\"format_recent_context_3\"];\nreturn [{ json: { ...body, retrievedRecentReplyContext: recentReplyMessages, shortTermAiContext, recentReplyContext } }];"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          704,
-          -528
+          656,
+          -496
         ],
         "id": "9e7812c6-6829-4172-aa63-21d5a26537d7",
         "name": "format recent context"
       },
       {
         "parameters": {
-          "jsCode": "const body = $json;\nconst fs = require(\"fs\");\nconst PROMPTS_PATH = \"/home/node/.n8n/private-prompts/memory-prompts.json\";\nconst promptConfig = JSON.parse(fs.readFileSync(PROMPTS_PATH, \"utf8\"));\nconst selectedMemberProfileMemories = body.selectedMemberProfileMemories ?? [];\nconst isReplyAssist = body.isReplyAssist;\nconst memberProfileSelection = body.memberProfileSelection;\nconst groupPersonas = {\n  default: {\n    tone:\n      promptConfig.strings[\"set_persona_policy_0\"],\n    language:\n      promptConfig.strings[\"set_persona_policy_1\"],\n    length:\n      promptConfig.strings[\"set_persona_policy_2\"],\n    memoryRule:\n      promptConfig.strings[\"set_persona_policy_3\"],\n    safety:\n      promptConfig.strings[\"set_persona_policy_4\"],\n  },\n};\n\nconst persona = groupPersonas[body.groupId] ?? groupPersonas.default;\nconst memberProfileContext =\n  selectedMemberProfileMemories.length > 0\n    ? promptConfig.strings[\"set_persona_policy_5\"] + (isReplyAssist ? promptConfig.strings[\"set_persona_policy_6\"] : memberProfileSelection.selectionNote) + (memberProfileSelection.matchedTargetName ? promptConfig.strings[\"set_persona_policy_7\"] + memberProfileSelection.matchedTargetName : \"\") + \"\\n\\n\" + selectedMemberProfileMemories.join(\"\\n\")\n    : memberProfileSelection.selectionNote + promptConfig.strings[\"set_persona_policy_8\"];\nconst replyAssistInstructions = isReplyAssist\n  ? [\n      promptConfig.strings[\"set_persona_policy_9\"],\n      promptConfig.strings[\"set_persona_policy_10\"],\n      promptConfig.strings[\"set_persona_policy_11\"],\n      promptConfig.strings[\"set_persona_policy_12\"],\n      promptConfig.strings[\"set_persona_policy_13\"],\n      promptConfig.strings[\"set_persona_policy_14\"],\n      promptConfig.strings[\"set_persona_policy_15\"],\n      promptConfig.strings[\"set_persona_policy_16\"],\n    ].join(\"\\n\")\n  : \"\";\nconst system = {\n  role: \"system\",\n  content: [\n    promptConfig.strings[\"set_persona_policy_17\"],\n    promptConfig.strings[\"set_persona_policy_18\"] + persona.tone,\n    promptConfig.strings[\"set_persona_policy_19\"] + persona.language,\n    promptConfig.strings[\"set_persona_policy_20\"] + persona.length,\n    promptConfig.strings[\"set_persona_policy_21\"] + persona.memoryRule,\n    promptConfig.strings[\"set_persona_policy_22\"] + persona.safety,\n    promptConfig.strings[\"set_persona_policy_23\"],\n    promptConfig.strings[\"set_persona_policy_24\"],\n    promptConfig.strings[\"set_persona_policy_25\"],\n    promptConfig.strings[\"set_persona_policy_26\"],\n    promptConfig.strings[\"set_persona_policy_27\"],\n    promptConfig.strings[\"set_persona_policy_28\"],\n    promptConfig.strings[\"set_persona_policy_29\"],\n    promptConfig.strings[\"set_persona_policy_30\"],\n    promptConfig.strings[\"set_persona_policy_31\"],\n    promptConfig.strings[\"set_persona_policy_32\"],\n    promptConfig.strings[\"set_persona_policy_33\"],\n    promptConfig.strings[\"set_persona_policy_34\"],\n    promptConfig.strings[\"set_persona_policy_35\"],\n    promptConfig.strings[\"set_persona_policy_36\"],\n    promptConfig.strings[\"set_persona_policy_37\"],\n    promptConfig.strings[\"set_persona_policy_38\"],\n    promptConfig.strings[\"set_persona_policy_39\"],\n    promptConfig.strings[\"set_persona_policy_40\"],\n    promptConfig.strings[\"set_persona_policy_41\"],\n  ].join(\"\\n\"),\n};\nreturn [{ json: { ...body, persona, memberProfileContext, replyAssistInstructions, system } }];"
+          "jsCode": "const body = $json;\nconst fs = require(\"fs\");\nconst PROMPTS_DIR = \"/home/node/.n8n/private-prompts\";\nconst PROMPTS_PATH = PROMPTS_DIR + \"/memory-prompts.json\";\nconst promptConfig = JSON.parse(fs.readFileSync(PROMPTS_PATH, \"utf8\"));\n\nfunction parsePromptMarkdownSections(text) {\n  const sections = {};\n  let currentKey = \"\";\n  for (const line of String(text || \"\").split(/\\r?\\n/)) {\n    const match = line.match(/^##\\s+([A-Za-z0-9_:-]+)\\s*$/);\n    if (match) {\n      currentKey = match[1];\n      sections[currentKey] = \"\";\n      continue;\n    }\n    if (currentKey) {\n      sections[currentKey] += (sections[currentKey] ? \"\\n\" : \"\") + line;\n    }\n  }\n  return Object.fromEntries(\n    Object.entries(sections).map(([key, value]) => [key, value.trim()])\n  );\n}\n\nfor (const fileName of [\n  \"member-profile-selection.md\",\n  \"semantic-memory.md\",\n  \"recent-context.md\",\n  \"persona-policy.md\",\n]) {\n  const filePath = PROMPTS_DIR + \"/\" + fileName;\n  if (fs.existsSync(filePath)) {\n    Object.assign(\n      promptConfig.strings,\n      parsePromptMarkdownSections(fs.readFileSync(filePath, \"utf8\"))\n    );\n  }\n}\nconst selectedMemberProfileMemories = body.selectedMemberProfileMemories ?? [];\nconst isReplyAssist = body.isReplyAssist;\nconst memberProfileSelection = body.memberProfileSelection;\nconst groupPersonas = {\n  default: {\n    tone:\n      promptConfig.strings[\"set_persona_policy_0\"],\n    language:\n      promptConfig.strings[\"set_persona_policy_1\"],\n    length:\n      promptConfig.strings[\"set_persona_policy_2\"],\n    memoryRule:\n      promptConfig.strings[\"set_persona_policy_3\"],\n    safety:\n      promptConfig.strings[\"set_persona_policy_4\"],\n  },\n};\n\nconst persona = groupPersonas[body.groupId] ?? groupPersonas.default;\nconst memberProfileContext =\n  selectedMemberProfileMemories.length > 0\n    ? promptConfig.strings[\"set_persona_policy_5\"] + (isReplyAssist ? promptConfig.strings[\"set_persona_policy_6\"] : memberProfileSelection.selectionNote) + (memberProfileSelection.matchedTargetName ? promptConfig.strings[\"set_persona_policy_7\"] + memberProfileSelection.matchedTargetName : \"\") + \"\\n\\n\" + selectedMemberProfileMemories.join(\"\\n\")\n    : memberProfileSelection.selectionNote + promptConfig.strings[\"set_persona_policy_8\"];\nconst replyAssistInstructions = isReplyAssist\n  ? [\n      promptConfig.strings[\"set_persona_policy_9\"],\n      promptConfig.strings[\"set_persona_policy_10\"],\n      promptConfig.strings[\"set_persona_policy_11\"],\n      promptConfig.strings[\"set_persona_policy_12\"],\n      promptConfig.strings[\"set_persona_policy_13\"],\n      promptConfig.strings[\"set_persona_policy_14\"],\n      promptConfig.strings[\"set_persona_policy_15\"],\n      promptConfig.strings[\"set_persona_policy_16\"],\n    ].join(\"\\n\")\n  : \"\";\nconst system = {\n  role: \"system\",\n  content: [\n    promptConfig.strings[\"set_persona_policy_17\"],\n    promptConfig.strings[\"set_persona_policy_18\"] + persona.tone,\n    promptConfig.strings[\"set_persona_policy_19\"] + persona.language,\n    promptConfig.strings[\"set_persona_policy_20\"] + persona.length,\n    promptConfig.strings[\"set_persona_policy_21\"] + persona.memoryRule,\n    promptConfig.strings[\"set_persona_policy_22\"] + persona.safety,\n    promptConfig.strings[\"set_persona_policy_23\"],\n    promptConfig.strings[\"set_persona_policy_24\"],\n    promptConfig.strings[\"set_persona_policy_25\"],\n    promptConfig.strings[\"set_persona_policy_26\"],\n    promptConfig.strings[\"set_persona_policy_27\"],\n    promptConfig.strings[\"set_persona_policy_28\"],\n    promptConfig.strings[\"set_persona_policy_29\"],\n    promptConfig.strings[\"set_persona_policy_30\"],\n    promptConfig.strings[\"set_persona_policy_31\"],\n    promptConfig.strings[\"set_persona_policy_32\"],\n    promptConfig.strings[\"set_persona_policy_33\"],\n    promptConfig.strings[\"set_persona_policy_34\"],\n    promptConfig.strings[\"set_persona_policy_35\"],\n    promptConfig.strings[\"set_persona_policy_36\"],\n    promptConfig.strings[\"set_persona_policy_37\"],\n    promptConfig.strings[\"set_persona_policy_38\"],\n    promptConfig.strings[\"set_persona_policy_39\"],\n    promptConfig.strings[\"set_persona_policy_40\"],\n    promptConfig.strings[\"set_persona_policy_41\"],\n  ].join(\"\\n\"),\n};\nreturn [{ json: { ...body, persona, memberProfileContext, replyAssistInstructions, system } }];"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          704,
-          -656
+          656,
+          -624
         ],
         "id": "88491870-b5a6-42e0-a3ca-2251cd378159",
         "name": "set persona policy"
       },
       {
         "parameters": {
-          "jsCode": "const body = $json;\nconst fs = require(\"fs\");\nconst PROMPTS_PATH = \"/home/node/.n8n/private-prompts/memory-prompts.json\";\nconst promptConfig = JSON.parse(fs.readFileSync(PROMPTS_PATH, \"utf8\"));\nconst memories = body.retrievedMemories ?? [];\nconst selectedMemberProfileMemories = body.selectedMemberProfileMemories ?? [];\nconst memberProfileSelection = body.memberProfileSelection;\nconst shortTermAiTurns = body.shortTermAiTurns ?? [];\nconst recentReplyMessages = body.retrievedRecentReplyContext ?? [];\nconst replyAssistTargetProfile = body.replyAssistTargetProfileRaw ?? null;\nconst isReplyAssist = body.isReplyAssist;\nconst responseModel = body.responseModel;\nconst system = body.system;\nconst memberProfileContext = body.memberProfileContext;\nconst memoryContext = body.memoryContext;\nconst shortTermAiContext = body.shortTermAiContext;\nconst recentReplyContext = body.recentReplyContext;\nconst replyAssistInstructions = body.replyAssistInstructions;\nreturn [\n  {\n    json: {\n      ...body,\n      retrievedMemories: memories,\n      retrievedMemberProfiles: selectedMemberProfileMemories,\n      retrievedMemberProfileSelection: memberProfileSelection,\n      retrievedShortTermAiTurns: shortTermAiTurns,\n      retrievedRecentReplyContext: recentReplyMessages,\n      replyAssistTargetProfile: replyAssistTargetProfile ? {\n        userId: replyAssistTargetProfile.userId,\n        userName: replyAssistTargetProfile.userName,\n      } : null,\n      responseMode: isReplyAssist ? \"reply_assist\" : \"chat\",\n      responseModel,\n      messages: [\n        system,\n        {\n          role: \"user\",\n          content:\n            memberProfileContext +\n            \"\\n\\n\" +\n            memoryContext +\n            \"\\n\\n\" +\n            shortTermAiContext +\n            \"\\n\\n\" +\n            recentReplyContext +\n            (replyAssistInstructions ? \"\\n\\n\" + replyAssistInstructions : \"\") +\n            promptConfig.strings[\"assemble_llm_messages_0\"] +\n            body.text,\n        },\n      ],\n    },\n  },\n];"
+          "jsCode": "const body = $json;\nconst fs = require(\"fs\");\nconst PROMPTS_DIR = \"/home/node/.n8n/private-prompts\";\nconst PROMPTS_PATH = PROMPTS_DIR + \"/memory-prompts.json\";\nconst promptConfig = JSON.parse(fs.readFileSync(PROMPTS_PATH, \"utf8\"));\n\nfunction parsePromptMarkdownSections(text) {\n  const sections = {};\n  let currentKey = \"\";\n  for (const line of String(text || \"\").split(/\\r?\\n/)) {\n    const match = line.match(/^##\\s+([A-Za-z0-9_:-]+)\\s*$/);\n    if (match) {\n      currentKey = match[1];\n      sections[currentKey] = \"\";\n      continue;\n    }\n    if (currentKey) {\n      sections[currentKey] += (sections[currentKey] ? \"\\n\" : \"\") + line;\n    }\n  }\n  return Object.fromEntries(\n    Object.entries(sections).map(([key, value]) => [key, value.trim()])\n  );\n}\n\nfor (const fileName of [\n  \"member-profile-selection.md\",\n  \"semantic-memory.md\",\n  \"recent-context.md\",\n  \"persona-policy.md\",\n]) {\n  const filePath = PROMPTS_DIR + \"/\" + fileName;\n  if (fs.existsSync(filePath)) {\n    Object.assign(\n      promptConfig.strings,\n      parsePromptMarkdownSections(fs.readFileSync(filePath, \"utf8\"))\n    );\n  }\n}\nconst memories = body.retrievedMemories ?? [];\nconst selectedMemberProfileMemories = body.selectedMemberProfileMemories ?? [];\nconst memberProfileSelection = body.memberProfileSelection;\nconst shortTermAiTurns = body.shortTermAiTurns ?? [];\nconst recentReplyMessages = body.retrievedRecentReplyContext ?? [];\nconst replyAssistTargetProfile = body.replyAssistTargetProfileRaw ?? null;\nconst isReplyAssist = body.isReplyAssist;\nconst responseModel = body.responseModel;\nconst system = body.system;\nconst memberProfileContext = body.memberProfileContext;\nconst memoryContext = body.memoryContext;\nconst shortTermAiContext = body.shortTermAiContext;\nconst recentReplyContext = body.recentReplyContext;\nconst replyAssistInstructions = body.replyAssistInstructions;\nreturn [\n  {\n    json: {\n      ...body,\n      retrievedMemories: memories,\n      retrievedMemberProfiles: selectedMemberProfileMemories,\n      retrievedMemberProfileSelection: memberProfileSelection,\n      retrievedShortTermAiTurns: shortTermAiTurns,\n      retrievedRecentReplyContext: recentReplyMessages,\n      replyAssistTargetProfile: replyAssistTargetProfile ? {\n        userId: replyAssistTargetProfile.userId,\n        userName: replyAssistTargetProfile.userName,\n      } : null,\n      responseMode: isReplyAssist ? \"reply_assist\" : \"chat\",\n      responseModel,\n      messages: [\n        system,\n        {\n          role: \"user\",\n          content:\n            memberProfileContext +\n            \"\\n\\n\" +\n            memoryContext +\n            \"\\n\\n\" +\n            shortTermAiContext +\n            \"\\n\\n\" +\n            recentReplyContext +\n            (replyAssistInstructions ? \"\\n\\n\" + replyAssistInstructions : \"\") +\n            promptConfig.strings[\"assemble_llm_messages_0\"] +\n            body.text,\n        },\n      ],\n    },\n  },\n];"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          704,
-          -784
+          656,
+          -752
         ],
         "id": "c5a7841b-2769-41b4-b723-5a713532a10a",
         "name": "assemble LLM messages"
+      },
+      {
+        "parameters": {
+          "model": "deepseek-v4-flash",
+          "options": {}
+        },
+        "type": "@n8n/n8n-nodes-langchain.lmChatDeepSeek",
+        "typeVersion": 1,
+        "position": [
+          256,
+          -976
+        ],
+        "id": "5e97e9ce-4a75-41c8-8309-cbc44fa2fc1f",
+        "name": "DeepSeek Combined Router Model",
+        "credentials": {
+          "deepSeekApi": {
+            "id": "CsiJm23ij01b9wBt",
+            "name": "DeepSeek account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "promptType": "define",
+          "text": "={{ $json.routingMessages.map(m => m.role.toUpperCase() + \":\\n\" + m.content).join(\"\\n\\n\") }}",
+          "batching": {}
+        },
+        "type": "@n8n/n8n-nodes-langchain.chainLlm",
+        "typeVersion": 1.9,
+        "position": [
+          256,
+          -1152
+        ],
+        "id": "2b92299c-999c-4cc4-ab36-e96be9ca3e8f",
+        "name": "DeepSeek combined router"
+      },
+      {
+        "parameters": {
+          "jsCode": "const body = $(\"Webhook\").first().json.body;\nconst result = $(\"qdrant search memory\").first().json.result;\nconst points = Array.isArray(result) ? result : result?.points ?? [];\n\nconst candidates = points\n  .filter((point) => point.payload?.text)\n  .slice(0, 20)\n  .map((point, index) => ({\n    index,\n    qdrantScore: point.score,\n    text: point.payload.text,\n    userName: point.payload.userName,\n    userId: point.payload.userId,\n    timestamp: point.payload.timestamp,\n    type: point.payload.type,\n    groupId: point.payload.groupId,\n  }));\n\nconst routingMessages = [\n  {\n    role: \"system\",\n    content: [\n      \"你是一個 WhatsApp RAG chatbot 的路由及記憶重排模組。\",\n      \"你必須只回傳 JSON，不要使用 markdown，不要加解釋文字。\",\n      \"任務 1：根據使用者問題，重新排序記憶候選項的有用程度。\",\n      \"任務 2：判斷是否需要外部網路搜尋。\",\n      \"不要問自己有沒有訓練資料；只判斷這個問題是否依賴外部資料、近期資料、產品資料、遊戲資料、API/模型/價格/版本/狀態/新聞/附近營業資訊等資料。\",\n      \"需要 search 的情況：最新資訊、新聞、價格、狀態、API、版本、模型比較、產品/服務推薦、介紹遊戲或軟件、查公司/人物/事件、附近/營業/優惠、用戶明確叫你查。\",\n      \"不需要 search 的情況：純聊天、翻譯、改寫、寫文案、普通情緒/社交建議、群內記憶問題、已由群記憶/成員画像回答的問題、創作笑話。\",\n      \"建議類問題要看內容：如果建議依賴最新產品/遊戲/API/價格/新聞/市場資訊就 shouldSearch=true；如果只是人際、文字、日常想法就 false。\",\n      \"query 要是適合 Brave Search 的短查詢，不要包含 @ai，不要太長。\",\n      \"JSON 欄位名稱必須保持英文。\",\n      \"Output shape: {\\\"rerank\\\":{\\\"items\\\":[{\\\"index\\\":0,\\\"score\\\":5,\\\"reason\\\":\\\"short\\\"}]},\\\"webSearch\\\":{\\\"shouldSearch\\\":false,\\\"query\\\":\\\"\\\",\\\"reason\\\":\\\"short\\\"}}\"\n    ].join(\"\\n\"),\n  },\n  {\n    role: \"user\",\n    content: JSON.stringify({\n      question: body.text,\n      memoryCandidates: candidates,\n    }),\n  },\n];\n\nreturn [{ json: { ...$json, memoryRerankCandidates: candidates, routingMessages } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          32,
+          -1152
+        ],
+        "id": "0600e8ff-d25a-4750-980d-03f998ebe295",
+        "name": "build combined routing prompt"
+      },
+      {
+        "parameters": {
+          "jsCode": "const original = $(\"build combined routing prompt\").first().json;\nconst routerOutput = $input.first().json;\nconst raw =\n  routerOutput.text ??\n  routerOutput.output ??\n  routerOutput.response ??\n  routerOutput.message?.content ??\n  routerOutput.choices?.[0]?.message?.content ??\n  \"\";\n\nfunction parseJson(text) {\n  const cleaned = String(text ?? \"\")\n    .replace(/^```json\\s*/i, \"\")\n    .replace(/^```\\s*/i, \"\")\n    .replace(/```$/i, \"\")\n    .trim();\n  return JSON.parse(cleaned);\n}\n\nlet parsed;\ntry {\n  parsed = parseJson(raw);\n} catch (_err) {\n  parsed = {\n    rerank: { items: [] },\n    webSearch: { shouldSearch: false, query: \"\", reason: \"combined-router-parse-failed\" },\n  };\n}\n\nconst byIndex = new Map(\n  original.memoryRerankCandidates.map((candidate) => [candidate.index, candidate])\n);\n\nconst reranked = (parsed.rerank?.items ?? [])\n  .filter((item) => Number(item.score) >= 2)\n  .sort((a, b) => Number(b.score) - Number(a.score))\n  .slice(0, 8)\n  .map((item) => ({\n    candidate: byIndex.get(Number(item.index)),\n    rerankScore: Number(item.score),\n    rerankReason: item.reason,\n  }))\n  .filter((item) => item.candidate);\n\nconst semanticResults = reranked.map((item) => ({\n  score: item.candidate.qdrantScore,\n  rerankScore: item.rerankScore,\n  rerankReason: item.rerankReason,\n  payload: {\n    text: item.candidate.text,\n    userName: item.candidate.userName,\n    userId: item.candidate.userId,\n    timestamp: item.candidate.timestamp,\n    type: item.candidate.type,\n    groupId: item.candidate.groupId,\n  },\n}));\n\nconst webSearch = {\n  shouldSearch: Boolean(parsed.webSearch?.shouldSearch),\n  query: String(parsed.webSearch?.query ? parsed.webSearch.query : (original.body?.text ?? \"\")),\n  reason: String(parsed.webSearch?.reason ?? \"combined-router\"),\n  results: [],\n};\n\nreturn [{ json: { ...original, semanticResults, webSearch, combinedRouterRaw: raw, combinedRouterParsed: parsed } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          592,
+          -1152
+        ],
+        "id": "1e81388c-532b-46db-83fd-07af0cd82d0a",
+        "name": "parse combined routing",
+        "retryOnFail": false
+      },
+      {
+        "parameters": {
+          "content": "#Reranker \nRerank 20 message from qdrant using llm reranker.",
+          "height": 372,
+          "width": 848,
+          "color": 7
+        },
+        "id": "600906fd-878d-413e-bcd2-9be76f3e8071",
+        "name": "layout note memory status1",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [
+          -80,
+          -1232
+        ]
       }
     ],
     "connections": {
@@ -936,9 +969,9 @@
         "main": [
           [
             {
-              "node": "Merge",
+              "node": "build combined routing prompt",
               "type": "main",
-              "index": 1
+              "index": 0
             }
           ]
         ]
@@ -1096,17 +1129,6 @@
           ]
         ]
       },
-      "parse web search decision": {
-        "main": [
-          [
-            {
-              "node": "needs web search",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
       "prepare image error message": {
         "main": [
           [
@@ -1146,28 +1168,6 @@
             {
               "node": "save memory",
               "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "Web Search Classifier Chain": {
-        "main": [
-          [
-            {
-              "node": "parse web search decision",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "DeepSeek Search Classifier Model": {
-        "ai_languageModel": [
-          [
-            {
-              "node": "Web Search Classifier Chain",
-              "type": "ai_languageModel",
               "index": 0
             }
           ]
@@ -1248,9 +1248,53 @@
         "main": [
           [
             {
-              "node": "Web Search Classifier Chain",
+              "node": "needs web search",
               "type": "main",
               "index": 0
+            }
+          ]
+        ]
+      },
+      "build combined routing prompt": {
+        "main": [
+          [
+            {
+              "node": "DeepSeek combined router",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "DeepSeek combined router": {
+        "main": [
+          [
+            {
+              "node": "parse combined routing",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "DeepSeek Combined Router Model": {
+        "ai_languageModel": [
+          [
+            {
+              "node": "DeepSeek combined router",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "parse combined routing": {
+        "main": [
+          [
+            {
+              "node": "Merge",
+              "type": "main",
+              "index": 1
             }
           ]
         ]
@@ -1259,87 +1303,20 @@
     "settings": {
       "executionOrder": "v1",
       "binaryMode": "separate",
-      "availableInMCP": false
+      "availableInMCP": false,
+      "timeSavedMode": "fixed",
+      "callerPolicy": "workflowsFromSameOwner",
+      "executionTimeout": 600
     },
-    "staticData": {
-      "global": {
-        "aiTurnBuffer": {
-          "85266209126-1591312833@g.us:111702765606:38@lid": [
-            {
-              "question": "幫我找找github今天最火的開源項目",
-              "answer": "freeCodeCamp 今日 633 星，但係一個月前嘅數據，玩嘢咩 😂.",
-              "savedAt": 1781691478140
-            },
-            {
-              "question": "freeCodeCamp 這個項目是做什麼的",
-              "answer": "免費學寫Code嘅網站，由HTML/CSS教到Python、React，仲有2000幾個互動挑戰比你玩 😂 開源、非牟利，全靠捐款營運—即係唔收你錢，仲要成個課程免費，你仲想點？.",
-              "savedAt": 1781691549125
-            },
-            {
-              "question": "幫我賺錢好冇",
-              "answer": "賺錢？我都想有人幫我賺啊 😂.",
-              "savedAt": 1781691571977
-            }
-          ],
-          "120363142022323634@g.us:111702765606:38@lid": [
-            {
-              "question": "hi",
-              "answer": "Hi，做乜齋hi呀？.",
-              "savedAt": 1781611463981
-            },
-            {
-              "question": "vincy生日想食咩？ 請你提供詳細理由",
-              "answer": "Vincy生日？壽星女話事啦，但估都估到唔係韓燒就放題！😏\n\n**我建議：高級自助餐/酒店buffet**\n**理由非常詳細：**\n1.  **選擇困難症良藥**：女仔揀食咩永遠係世紀難題，自助餐有生蠔刺身、牛扒甜品，佢可以每樣試少少，唔使煩，仲可以影相打卡呃like。\n2.  **回本心態**：生日食buffet，感覺上食幾多賺幾多，食窮間餐廳先顯得個生日有價值，呢種「抵到爛」嘅快感，其他餐廳畀唔到。\n3.  **儀式感爆棚**：好多酒店buffet生日會有小蛋糕、職員圍住唱生日歌，雖然尷尬，但影相一流，滿足壽星女嘅虛榮心。\n4.  **你唔使煩**：唔使驚叫餸叫錯嘢畀人黑面，佢自己出去拎，食完一輪又可以再拎，戰鬥力幾強都唔關你事，你淨係負責埋單就得。.",
-              "savedAt": 1781611493614
-            }
-          ],
-          "120363142022323634@g.us:86354763493477@lid": [
-            {
-              "question": "vincy好揀飲擇食",
-              "answer": "揀飲擇食係你嘅技能嚟㗎🍽️.",
-              "savedAt": 1781611919740
-            }
-          ],
-          "120363142022323634@g.us:111702765606@lid": [
-            {
-              "question": "食 m 記好冇",
-              "answer": "好呀，你請我食先。.",
-              "savedAt": 1781611960716
-            },
-            {
-              "question": "我同你好似咩",
-              "answer": "似你同自己鏡像講嘢咁。.",
-              "savedAt": 1781612257604
-            },
-            {
-              "question": "vincy 係肉食主義者 世界上有冇類似佢咁嘅人？請你詳細分析",
-              "answer": "Vincy 係肉食主義者？梗係有啦，呢個世界周街都係「無肉不歡」嘅人，佢絕對唔孤單。\n\n**1. 純生理層面嘅食肉獸**  \n有類人天生就覺得蔬菜係「牛先食嘅嘢」，見到沙律會反白眼，聞到烤肉香就瞳孔放大。呢種人通常體內缺乏某種酶，覺得菜有苦味，所以本能抗拒。Vincy 可能就係呢種基因選中嘅獵人。\n\n**2. 極端肉食主義者（Carnivore Diet）**  \n外國有一班人癲到成個飲食金字塔剩係食肉、內臟、蛋同奶，完全唔食植物，仲話可以醫濕疹、減肥、頭腦清醒。代表人物有 Jordan Peterson 同佢個女，宣稱食咗幾年純肉，身體好過做瑜伽。Vincy 相比佢哋可能只係小兒科，起碼佢應該未癲到用牛油當飯食。\n\n**3. 心理層面嘅 comfort eater**  \n好多人將食肉同情緒掛鉤，一口肥牛等於幸福感，尤其係香港地壓力大，放工打邊爐、任食燒肉係基本人權。Vincy 可能就係呢種「冇肉不歡，冇肉會抑鬱」嘅典型港女（or 港男），同你同我身邊八成朋友一樣。\n\n**4. 哲學級別嘅肉食捍衛者**  \n有種人食肉食到出聲，會同素食者辯論「植物都有生命」、「人類犬齒就係用嚟撕肉」，仲會引經據典話原始人飲食先係王道。如果 Vincy 會用「獅子食斑馬，你唔去鬧獅子？」嚟反擊綠色和平，咁佢就係呢個門派嘅傳人。\n\n**結論**：Vincy 嘅同類遍佈全球，由樓下茶餐廳阿叔、到 TikTok 煎牛扒 KOL，再到加拿大冰天雪地食生肝嘅 Inuit 人，全部係佢嘅靈魂家人。佢唯一比較特別嘅，可能係有個 AI 喺 WhatsApp group 幫佢分析呢樣嘢。.",
-              "savedAt": 1781612494815
-            }
-          ],
-          "120363142022323634@g.us:27114195669223@lid": [
-            {
-              "question": "Vincy唔食菜",
-              "answer": "Vincy唔食菜？咁佢點做草食動物啊？🌿.",
-              "savedAt": 1781612347091
-            },
-            {
-              "question": "你對佢唔食菜好唔好奇？",
-              "answer": "好奇啊，佢係咪靠飲水生存？💧.",
-              "savedAt": 1781612374640
-            }
-          ]
-        }
-      }
-    },
+    "staticData": {},
     "meta": {
       "templateCredsSetupCompleted": true
     },
     "pinData": {},
-    "versionId": "344d511e-5c73-4496-bdce-7eea0d4dbc43",
-    "activeVersionId": null,
-    "versionCounter": 185,
-    "triggerCount": 0,
+    "versionId": "df124c77-c78a-4d51-850a-050a0d6f2e65",
+    "activeVersionId": "df124c77-c78a-4d51-850a-050a0d6f2e65",
+    "versionCounter": 239,
+    "triggerCount": 1,
     "tags": [],
     "shared": [
       {
@@ -1360,9 +1337,6 @@
         }
       }
     ],
-    "versionMetadata": {
-      "name": "n8n RAG Whatsapp Chatbot Better Version",
-      "description": null
-    }
+    "versionMetadata": null
   }
 ]
