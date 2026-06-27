@@ -129,7 +129,7 @@
     {
       "parameters": {
         "operation": "llm_context",
-        "query": "={{ String(($json.top10 ?? [])[0]?.title ?? \"AI developer tools news\").replace(/[\"']/g, \"\").split(/\\s+/).slice(0, 32).join(\" \").slice(0, 280) }}",
+        "query": "={{ ($json.top10 ?? []).slice(0, 5).map(i => i.title).join(\" OR \") }}",
         "additionalParameters": {
           "country": "HK",
           "search_lang": "zh-hant",
@@ -141,17 +141,18 @@
       "type": "@brave/n8n-nodes-brave-search.braveSearch",
       "typeVersion": 1,
       "position": [
-        760,
-        220
+        144,
+        224
       ],
       "id": "7e4a3ee3-c913-428a-bf35-ff4f0b79b78d",
-      "name": "Brave Enrich Top 10",
+      "name": "Brave Enrich Top 10 Disabled",
       "credentials": {
         "braveSearchApi": {
           "id": "eZ883o5kQHbe62RQ",
           "name": "Brave Search account"
         }
-      }
+      },
+      "disabled": true
     },
     {
       "parameters": {
@@ -162,8 +163,8 @@
       "type": "@n8n/n8n-nodes-langchain.chainLlm",
       "typeVersion": 1.9,
       "position": [
-        1380,
-        20
+        336,
+        32
       ],
       "id": "1474096b-9118-41bb-a75c-2157014670ff",
       "name": "Write Daily Briefing"
@@ -176,8 +177,8 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatDeepSeek",
       "typeVersion": 1,
       "position": [
-        1380,
-        240
+        400,
+        -64
       ],
       "id": "6b6bd50a-26ee-410f-bafa-96b5ab699e1f",
       "name": "DeepSeek Briefing Model",
@@ -195,8 +196,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1700,
-        20
+        656,
+        32
       ],
       "id": "62ca97db-f2d8-4f6d-8949-719273efe7b9",
       "name": "Build WhatsApp Payload"
@@ -223,25 +224,12 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        2010,
-        20
+        864,
+        32
       ],
       "id": "7eb91821-3d65-4ffd-8f17-7145cdd32b66",
       "name": "Send WhatsApp News Disabled",
       "disabled": true
-    },
-    {
-      "parameters": {
-        "jsCode": "const source = $(\"Keep Top 10\").first().json;\nconst brave = $input.first().json;\nfunction textFrom(value) {\n  if (value === undefined) return \"\";\n  if (value === null) return \"\";\n  if (typeof value === \"string\") return value.trim();\n  if (Array.isArray(value)) return value.map(textFrom).filter(Boolean).join(\"\\n\\n\");\n  if (typeof value === \"object\") {\n    return [value.title, value.description, value.snippet, value.text, value.content, value.url ? \"Source: \" + value.url : \"\"]\n      .map(textFrom)\n      .filter(Boolean)\n      .join(\"\\n\");\n  }\n  return String(value).trim();\n}\nfunction firstText(values) {\n  for (const value of values) {\n    const text = textFrom(value);\n    if (text) return text;\n  }\n  return \"\";\n}\nconst context = firstText([brave.context, brave.llm_context, brave.full_content, brave.content, brave.results]);\nconst messages = Array.isArray(source.messages) ? source.messages.map((message) => ({ ...message })) : [];\nif (context) {\n  const extra = [\n    \"\",\n    \"External web context from Brave Search for the top scored items:\",\n    context,\n    \"Use this only to clarify background, freshness, product names, dates, and source context. Do not add claims not supported by feed items or this context.\"\n  ].join(\"\\n\");\n  if (messages.length > 0) {\n    const last = messages.length - 1;\n    messages[last] = {\n      ...messages[last],\n      content: String(messages[last].content ?? \"\") + \"\\n\\n\" + extra,\n    };\n  }\n}\nreturn [{ json: { ...source, braveContext: context, braveRaw: brave, messages } }];"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1080,
-        20
-      ],
-      "id": "e7ce22d9-b7b8-495c-b929-7a00850bd903",
-      "name": "Append Brave Enrichment"
     }
   ],
   "connections": {
@@ -326,7 +314,7 @@
       "main": [
         [
           {
-            "node": "Brave Enrich Top 10",
+            "node": "Write Daily Briefing",
             "type": "main",
             "index": 0
           }
@@ -360,28 +348,6 @@
         [
           {
             "node": "Send WhatsApp News Disabled",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Brave Enrich Top 10": {
-      "main": [
-        [
-          {
-            "node": "Append Brave Enrichment",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Append Brave Enrichment": {
-      "main": [
-        [
-          {
-            "node": "Write Daily Briefing",
             "type": "main",
             "index": 0
           }
